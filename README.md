@@ -1,75 +1,638 @@
-# React + TypeScript + Vite
+# 🍱 Food Rescue
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> A live surplus-food listings board that connects surplus food with people nearby — helping reduce food waste through quick local rescue.
 
-Currently, two official plugins are available:
+## 🌱 What is Food Rescue?
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Food Rescue is a full-stack MVP designed to help restaurants, kitchens, stores, and individuals share surplus food before it goes to waste.
 
-## React Compiler
+A user can post an available food listing with a pickup location and time window. Other authenticated users can view the listing and claim it.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The listing follows a simple lifecycle:
 
-## Expanding the ESLint configuration
+**Available → Claimed → Picked Up**
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The project focuses on making the core food-rescue workflow simple, fast, and reliable.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## ✨ Features
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- 🔐 Email/password authentication
+- 👤 User signup with name
+- 🍱 Create surplus-food listings
+- 📝 Food name and description
+- 📦 Quantity information
+- 📍 Pickup area
+- 🕐 Pickup start and end time
+- 📸 Food photo upload
+- 🗂️ Available / Claimed / Picked Up sections
+- ⚡ Atomic food claiming
+- ✅ Mark claimed food as picked up
+- 💾 Persistent database storage
+- 🔒 Row-Level Security with Supabase
+- ☁️ Supabase Storage for food photos
+- 🚀 Vercel deployment
+- 📱 Responsive interface
 
+---
+
+# 🧱 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React |
+| Build Tool | Vite |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| Backend | Supabase |
+| Database | PostgreSQL |
+| Authentication | Supabase Auth |
+| File Storage | Supabase Storage |
+| Hosting | Vercel |
+| Version Control | Git + GitHub |
+
+---
+
+# 🏗️ Architecture
+
+Food Rescue does not require a separate Express, Node.js, or FastAPI backend.
+
+The React application communicates directly with Supabase.
+
+```text
+                  ┌─────────────────────┐
+                  │       Browser       │
+                  │   React + Vite UI   │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │      Supabase       │
+                  │                     │
+                  │  PostgreSQL         │
+                  │  Authentication     │
+                  │  Storage            │
+                  │  Row-Level Security │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │       Vercel        │
+                  │  Production Hosting │
+                  └─────────────────────┘
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+# 📊 Listing Lifecycle
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Every food listing follows this lifecycle:
 
+```text
+┌───────────┐
+│ Available │
+└─────┬─────┘
+      │
+      │ User claims food
+      ▼
+┌───────────┐
+│  Claimed  │
+└─────┬─────┘
+      │
+      │ Food collected
+      ▼
+┌────────────┐
+│ Picked Up  │
+└────────────┘
 ```
+
+Each listing contains a pickup window so users know when the food can be collected.
+
+---
+
+# 🗄️ Database
+
+The core application uses a PostgreSQL `listings` table in Supabase.
+
+Example structure:
+
+```sql
+create table public.listings (
+  id uuid primary key default gen_random_uuid(),
+
+  title text not null,
+
+  description text,
+
+  quantity text,
+
+  photo_url text,
+
+  location_text text not null,
+
+  pickup_window_start timestamptz not null,
+
+  pickup_window_end timestamptz not null,
+
+  status text not null default 'available'
+    check (
+      status in (
+        'available',
+        'claimed',
+        'picked_up'
+      )
+    ),
+
+  posted_by uuid not null
+    references auth.users(id),
+
+  claimed_by uuid
+    references auth.users(id),
+
+  created_at timestamptz not null
+    default now()
+);
+```
+
+An index can be used to efficiently retrieve active listings:
+
+```sql
+create index listings_status_created_idx
+on public.listings (
+  status,
+  created_at desc
+);
+```
+
+---
+
+# ⚡ Atomic Claiming
+
+One of the most important parts of Food Rescue is preventing two people from claiming the same food.
+
+The application only allows a listing to be updated if its current status is `available`.
+
+Example:
+
+```ts
+const { data, error } = await supabase
+  .from('listings')
+  .update({
+    status: 'claimed',
+    claimed_by: user.id,
+  })
+  .eq('id', listingId)
+  .eq('status', 'available')
+  .select()
+```
+
+The important condition is:
+
+```ts
+.eq('status', 'available')
+```
+
+If another user has already claimed the listing, the second request will not overwrite the existing claim.
+
+This provides database-level protection against double claiming.
+
+---
+
+# 🔒 Security
+
+Supabase Row-Level Security is used to control database access.
+
+The application is designed so that:
+
+- Authenticated users can view food listings.
+- Users can create listings for themselves.
+- Users cannot impersonate another user when creating a listing.
+- Users can claim available food.
+- A listing cannot be claimed twice.
+- Claimants can complete the pickup workflow.
+- Users cannot freely modify other users' listings.
+
+Authentication is handled through Supabase Auth.
+
+---
+
+# 📸 Photo Upload
+
+Food Rescue supports optional food photos.
+
+Photos are stored in a Supabase Storage bucket:
+
+```text
+listing-photos
+```
+
+The upload flow is:
+
+```text
+User selects image
+       ↓
+React form
+       ↓
+Supabase Storage
+       ↓
+Public image URL
+       ↓
+listings.photo_url
+       ↓
+Listing Card
+```
+
+The photo itself is stored in Supabase Storage rather than inside PostgreSQL.
+
+Only the image URL is stored in the listing record.
+
+---
+
+# 📁 Project Structure
+
+```text
+food-rescue/
+│
+├── public/
+│
+├── src/
+│   ├── assets/
+│   │
+│   ├── components/
+│   │   ├── Auth.tsx
+│   │   ├── ListingCard.tsx
+│   │   ├── ListingFeed.tsx
+│   │   └── PostListingForm.tsx
+│   │
+│   ├── lib/
+│   │   └── supabase.ts
+│   │
+│   ├── App.tsx
+│   ├── App.css
+│   ├── index.css
+│   └── main.tsx
+│
+├── .env
+├── .gitignore
+├── index.html
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── vite.config.ts
+└── README.md
+```
+
+---
+
+# 🚀 Getting Started
+
+## 1. Clone the repository
+
+```bash
+git clone https://github.com/still-trying/food-rescue.git
+```
+
+Then:
+
+```bash
+cd food-rescue
+```
+
+---
+
+## 2. Install dependencies
+
+```bash
+npm install
+```
+
+---
+
+## 3. Configure environment variables
+
+Create a `.env` file in the project root.
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Do not commit your `.env` file to GitHub.
+
+The `.gitignore` should contain:
+
+```text
+.env
+.env.local
+```
+
+---
+
+# ▶️ Run Locally
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+The application will normally be available at:
+
+```text
+http://localhost:5173
+```
+
+---
+
+# 🏗️ Production Build
+
+Before deploying, test the production build:
+
+```bash
+npm run build
+```
+
+If the build succeeds, preview it locally using:
+
+```bash
+npm run preview
+```
+
+---
+
+# ⚙️ Supabase Setup
+
+To reproduce the backend:
+
+### Step 1 — Create Supabase project
+
+Create a new Supabase project.
+
+### Step 2 — Create database table
+
+Create the `listings` table using the SQL schema described above.
+
+### Step 3 — Enable Row-Level Security
+
+Enable RLS on the `listings` table.
+
+### Step 4 — Configure authentication
+
+Enable email/password authentication.
+
+For quick MVP testing, email confirmation can be disabled.
+
+### Step 5 — Create Storage bucket
+
+Create:
+
+```text
+listing-photos
+```
+
+The bucket can be configured for public image viewing.
+
+### Step 6 — Configure Storage policies
+
+Allow authenticated users to upload listing photos.
+
+---
+
+# 🌐 Deployment
+
+The production application is hosted using Vercel.
+
+Deployment architecture:
+
+```text
+GitHub
+   │
+   │ Push to main
+   ▼
+Vercel
+   │
+   │ Build
+   ▼
+React Production App
+   │
+   ▼
+Supabase
+```
+
+The Vercel project requires these environment variables:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+Every push to the `main` branch can trigger a new Vercel deployment.
+
+---
+
+# 🧪 End-to-End Test
+
+A complete Food Rescue test should follow this workflow:
+
+```text
+1. Create account
+       ↓
+2. Login
+       ↓
+3. Click "Post Surplus"
+       ↓
+4. Enter food information
+       ↓
+5. Add pickup location
+       ↓
+6. Add pickup window
+       ↓
+7. Upload optional photo
+       ↓
+8. Post food
+       ↓
+9. Listing appears under Available
+       ↓
+10. Another user claims it
+       ↓
+11. Listing moves to Claimed
+       ↓
+12. Claimant marks it as Picked Up
+       ↓
+13. Listing moves to Picked Up
+```
+
+This verifies the main product workflow from beginning to end.
+
+---
+
+# 🎯 MVP Scope
+
+Food Rescue intentionally focuses on the core food-rescue workflow.
+
+## Included
+
+- Authentication
+- Food listings
+- Food descriptions
+- Quantity
+- Pickup location
+- Pickup time window
+- Food photos
+- Available listings
+- Claiming
+- Picked-up status
+- PostgreSQL persistence
+- Supabase Auth
+- Supabase Storage
+- Row-Level Security
+- Vercel deployment
+
+## Not included yet
+
+- GPS-based discovery
+- Maps
+- Chat
+- Push notifications
+- Ratings
+- Payments
+- Advanced recommendation system
+- Admin dashboard
+- Real-time notifications
+- Business verification
+- AI food classification
+
+These features can be added in future versions.
+
+---
+
+# 🔮 Future Improvements
+
+Possible future versions could include:
+
+### 📍 Location-based discovery
+
+Show surplus food based on distance from the user.
+
+### 🗺️ Map integration
+
+Display nearby food listings on a map.
+
+### ⚡ Real-time updates
+
+Use Supabase Realtime so listings update immediately when someone claims them.
+
+### 🔔 Notifications
+
+Notify users when:
+
+- New food becomes available
+- Their listing is claimed
+- Pickup time is approaching
+
+### 🏪 Business accounts
+
+Allow restaurants, hotels, cafes, bakeries, and stores to create verified accounts.
+
+### 📊 Impact dashboard
+
+Track:
+
+```text
+Meals rescued
+Food listings
+Successful pickups
+Estimated food waste prevented
+Active contributors
+```
+
+### ⭐ Community reputation
+
+Add ratings and reliability scores for users and organizations.
+
+---
+
+# 💡 Why Food Rescue?
+
+A large amount of edible food is discarded because it becomes surplus before it can be consumed.
+
+Food Rescue focuses on a simple idea:
+
+> **Make surplus food visible to people who can use it before it becomes waste.**
+
+Instead of building a complicated marketplace, the MVP provides a simple local board:
+
+```text
+Someone has extra food
+        ↓
+Post it
+        ↓
+Someone nearby sees it
+        ↓
+Claim it
+        ↓
+Pick it up
+        ↓
+Food is rescued
+```
+
+---
+
+# 🤝 Contributing
+
+Contributions and improvements are welcome.
+
+Create a feature branch:
+
+```bash
+git checkout -b feature/your-feature
+```
+
+Make your changes:
+
+```bash
+git add .
+```
+
+Commit:
+
+```bash
+git commit -m "Add your feature"
+```
+
+Push:
+
+```bash
+git push origin feature/your-feature
+```
+
+Then create a Pull Request on GitHub.
+
+---
+
+# 📄 License
+
+This project is currently developed as an MVP / innovation project.
+
+A specific open-source license can be added if the project is released for public distribution.
+
+---
+
+# 💚 Mission
+
+Food that can still be eaten should not become waste simply because it is surplus.
+
+**Food Rescue connects surplus food with people who can use it — quickly, locally, and simply.**
+
+Built with:
+
+**React + TypeScript + Tailwind CSS + Supabase + Vercel**
+
+---
+
+## 🔗 Repository
+
+GitHub:
+
+https://github.com/still-trying/food-rescue
