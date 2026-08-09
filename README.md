@@ -615,7 +615,7 @@ Then create a Pull Request on GitHub.
 
 This project is currently developed as an MVP / innovation project.
 
-A specific open-source license can be added if the project is released for public distribution.
+MIT
 
 ---
 
