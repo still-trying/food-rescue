@@ -150,14 +150,22 @@ export default function ListingCard({
         </div>
 
         <div className="mt-5">
-          {listing.status === 'available' && (
-            <button
-              onClick={handleClaim}
-              className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
-            >
-              Claim Food
-            </button>
-          )}
+          {listing.status === 'available' &&
+  new Date(listing.pickup_window_end) > new Date() && (
+    <button
+      onClick={handleClaim}
+      className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
+    >
+      Claim Food
+    </button>
+  )}
+
+{listing.status === 'available' &&
+  new Date(listing.pickup_window_end) <= new Date() && (
+    <div className="rounded-xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+      ⏰ Pickup window expired
+    </div>
+  )}
 
           {listing.status === 'claimed' &&
             listing.claimed_by === currentUserId && (
