@@ -5,7 +5,7 @@ import ListingFeed from './components/ListingFeed'
 import PostListingForm from './components/PostListingForm'
 import type { Listing } from './components/ListingCard'
 
-type View = 'available' | 'claimed' | 'picked_up' | 'post'
+type View = 'available' | 'claimed' | 'picked_up' | 'my_listings' | 'post'
 
 function App() {
   const [view, setView] = useState<View>('available')
@@ -112,6 +112,11 @@ const filteredListings = listings.filter((listing) => {
     return false
   }
 
+  // My Listings = listings created by the logged-in user
+  if (view === 'my_listings') {
+    return listing.posted_by === userId
+  }
+
   return listing.status === view
 })
 
@@ -201,6 +206,18 @@ const filteredListings = listings.filter((listing) => {
           >
             Picked Up
           </button>
+
+<button
+  onClick={() => setView('my_listings')}
+  className={`border-b-2 px-1 py-4 font-medium ${
+    view === 'my_listings'
+      ? 'border-green-600 text-green-600'
+      : 'border-transparent text-gray-500'
+  }`}
+>
+  My Listings
+</button>
+
         </div>
       </nav>
 
@@ -222,21 +239,25 @@ const filteredListings = listings.filter((listing) => {
           <>
             <div className="mb-8">
               <h2 className="text-3xl font-bold">
-                {view === 'available' && 'Available Food'}
-                {view === 'claimed' && 'Claimed Food'}
-                {view === 'picked_up' && 'Picked Up'}
-              </h2>
+  {view === 'available' && 'Available Food'}
+  {view === 'claimed' && 'Claimed Food'}
+  {view === 'picked_up' && 'Picked Up'}
+  {view === 'my_listings' && 'My Listings'}
+</h2>
 
               <p className="mt-2 text-gray-600">
-                {view === 'available' &&
-                  'Find surplus food available near you.'}
+  {view === 'available' &&
+    'Find surplus food available near you.'}
 
-                {view === 'claimed' &&
-                  'Food that has already been claimed.'}
+  {view === 'claimed' &&
+    'Food that has already been claimed.'}
 
-                {view === 'picked_up' &&
-                  'Food that has successfully been rescued.'}
-              </p>
+  {view === 'picked_up' &&
+    'Food that has successfully been rescued.'}
+
+  {view === 'my_listings' &&
+    'Food listings that you have posted.'}
+</p>
             </div>
 
             <ListingFeed
