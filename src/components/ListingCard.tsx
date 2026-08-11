@@ -39,16 +39,17 @@ export default function ListingCard({
       return
     }
 
-    const { data, error } = await supabase
-      .from('listings')
-      .update({
-        status: 'claimed',
-        claimed_by: currentUserId,
-      })
-      .eq('id', listing.id)
-      .eq('status', 'available')
-      .select()
-      .maybeSingle()
+   const { data, error } = await supabase
+  .from('listings')
+  .update({
+    status: 'claimed',
+    claimed_by: currentUserId,
+  })
+  .eq('id', listing.id)
+  .eq('status', 'available')
+  .gt('pickup_window_end', new Date().toISOString())
+  .select()
+  .maybeSingle()
 
     if (error) {
       alert(error.message)
@@ -56,9 +57,11 @@ export default function ListingCard({
     }
 
     if (!data) {
-      alert('Someone just claimed this listing.')
-      return
-    }
+  alert(
+    'This food is no longer available. It may have expired or already been claimed.'
+  )
+  return
+}
 
     onUpdated(data as Listing)
   }
