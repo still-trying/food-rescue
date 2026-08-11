@@ -6,11 +6,13 @@
 
 Food Rescue is a full-stack MVP designed to help restaurants, kitchens, stores, and individuals share surplus food before it goes to waste.
 
-A user can post an available food listing with a pickup location and time window. Other authenticated users can view the listing and claim it.
+A user can post an available food listing with a pickup location, time window, quantity, description, and optional photo. Other authenticated users can view the listing and claim it.
 
 The listing follows a simple lifecycle:
 
 **Available → Claimed → Picked Up**
+
+Listings whose pickup window has ended are automatically removed from the active Available feed.
 
 The project focuses on making the core food-rescue workflow simple, fast, and reliable.
 
@@ -27,8 +29,10 @@ The project focuses on making the core food-rescue workflow simple, fast, and re
 - 🕐 Pickup start and end time
 - 📸 Food photo upload
 - 🗂️ Available / Claimed / Picked Up sections
+- 👤 My Listings section
 - ⚡ Atomic food claiming
 - ✅ Mark claimed food as picked up
+- ⏰ Pickup-window expiration handling
 - 💾 Persistent database storage
 - 🔒 Row-Level Security with Supabase
 - ☁️ Supabase Storage for food photos
@@ -81,15 +85,10 @@ The React application communicates directly with Supabase.
                   │       Vercel        │
                   │  Production Hosting │
                   └─────────────────────┘
-```
-
----
-
-# 📊 Listing Lifecycle
+📊 Listing Lifecycle
 
 Every food listing follows this lifecycle:
 
-```text
 ┌───────────┐
 │ Available │
 └─────┬─────┘
@@ -105,19 +104,29 @@ Every food listing follows this lifecycle:
 ┌────────────┐
 │ Picked Up  │
 └────────────┘
-```
 
 Each listing contains a pickup window so users know when the food can be collected.
 
----
+Pickup expiration
 
-# 🗄️ Database
+The application uses the existing pickup_window_end field to determine whether an available listing has expired.
 
-The core application uses a PostgreSQL `listings` table in Supabase.
+Available
+    │
+    │ pickup_window_end reached
+    ▼
+Removed from active Available feed
+
+The database does not currently use a separate expired status.
+
+This keeps the lifecycle simple while preventing expired available food from remaining claimable.
+
+🗄️ Database
+
+The core application uses a PostgreSQL listings table in Supabase.
 
 Example structure:
 
-```sql
 create table public.listings (
   id uuid primary key default gen_random_uuid(),
 
@@ -153,29 +162,22 @@ create table public.listings (
   created_at timestamptz not null
     default now()
 );
-```
 
-An index can be used to efficiently retrieve active listings:
+An index can be used to efficiently retrieve listings:
 
-```sql
 create index listings_status_created_idx
 on public.listings (
   status,
   created_at desc
 );
-```
-
----
-
-# ⚡ Atomic Claiming
+⚡ Atomic Claiming
 
 One of the most important parts of Food Rescue is preventing two people from claiming the same food.
 
-The application only allows a listing to be updated if its current status is `available`.
+The application only allows a listing to be updated if its current status is available.
 
 Example:
 
-```ts
 const { data, error } = await supabase
   .from('listings')
   .update({
@@ -185,51 +187,42 @@ const { data, error } = await supabase
   .eq('id', listingId)
   .eq('status', 'available')
   .select()
-```
+  .maybeSingle()
 
 The important condition is:
 
-```ts
 .eq('status', 'available')
-```
 
 If another user has already claimed the listing, the second request will not overwrite the existing claim.
 
 This provides database-level protection against double claiming.
 
----
-
-# 🔒 Security
+🔒 Security
 
 Supabase Row-Level Security is used to control database access.
 
 The application is designed so that:
 
-- Authenticated users can view food listings.
-- Users can create listings for themselves.
-- Users cannot impersonate another user when creating a listing.
-- Users can claim available food.
-- A listing cannot be claimed twice.
-- Claimants can complete the pickup workflow.
-- Users cannot freely modify other users' listings.
+Authenticated users can view food listings.
+Users can create listings for themselves.
+Users cannot impersonate another user when creating a listing.
+Users can claim available food.
+A listing cannot be claimed twice.
+Only the user who claimed food can mark it as picked up.
+Users cannot freely modify other users' listings.
 
 Authentication is handled through Supabase Auth.
 
----
-
-# 📸 Photo Upload
+📸 Photo Upload
 
 Food Rescue supports optional food photos.
 
 Photos are stored in a Supabase Storage bucket:
 
-```text
 listing-photos
-```
 
 The upload flow is:
 
-```text
 User selects image
        ↓
 React form
@@ -241,33 +234,42 @@ Public image URL
 listings.photo_url
        ↓
 Listing Card
-```
 
 The photo itself is stored in Supabase Storage rather than inside PostgreSQL.
 
 Only the image URL is stored in the listing record.
 
----
+📋 My Listings
 
-# 📁 Project Structure
+Food Rescue includes a My Listings view.
 
-```text
+Users can view listings that they personally posted and track their current status.
+
+My Listings
+     │
+     ├── Available
+     ├── Claimed
+     └── Picked Up
+
+This gives contributors a simple way to track the food they have shared.
+
+📁 Project Structure
 food-rescue/
 │
 ├── public/
 │
 ├── src/
 │   ├── assets/
-│   │
+│
 │   ├── components/
 │   │   ├── Auth.tsx
 │   │   ├── ListingCard.tsx
 │   │   ├── ListingFeed.tsx
 │   │   └── PostListingForm.tsx
-│   │
+│
 │   ├── lib/
 │   │   └── supabase.ts
-│   │
+│
 │   ├── App.tsx
 │   ├── App.css
 │   ├── index.css
@@ -281,131 +283,86 @@ food-rescue/
 ├── tsconfig.json
 ├── vite.config.ts
 └── README.md
-```
-
----
-
-# 🚀 Getting Started
-
-## 1. Clone the repository
-
-```bash
+🚀 Getting Started
+1. Clone the repository
 git clone https://github.com/still-trying/food-rescue.git
-```
 
 Then:
 
-```bash
 cd food-rescue
-```
-
----
-
-## 2. Install dependencies
-
-```bash
+2. Install dependencies
 npm install
-```
+3. Configure environment variables
 
----
+Create a .env file in the project root.
 
-## 3. Configure environment variables
-
-Create a `.env` file in the project root.
-
-```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
 
-Do not commit your `.env` file to GitHub.
+Do not commit your .env file to GitHub.
 
-The `.gitignore` should contain:
+The .gitignore should contain:
 
-```text
 .env
 .env.local
-```
-
----
-
-# ▶️ Run Locally
+▶️ Run Locally
 
 Start the development server:
 
-```bash
 npm run dev
-```
 
 The application will normally be available at:
 
-```text
 http://localhost:5173
-```
-
----
-
-# 🏗️ Production Build
+🏗️ Production Build
 
 Before deploying, test the production build:
 
-```bash
 npm run build
-```
 
 If the build succeeds, preview it locally using:
 
-```bash
 npm run preview
-```
-
----
-
-# ⚙️ Supabase Setup
+⚙️ Supabase Setup
 
 To reproduce the backend:
 
-### Step 1 — Create Supabase project
+Step 1 — Create Supabase project
 
 Create a new Supabase project.
 
-### Step 2 — Create database table
+Step 2 — Create database table
 
-Create the `listings` table using the SQL schema described above.
+Create the listings table using the SQL schema described above.
 
-### Step 3 — Enable Row-Level Security
+Step 3 — Enable Row-Level Security
 
-Enable RLS on the `listings` table.
+Enable RLS on the listings table.
 
-### Step 4 — Configure authentication
+Step 4 — Configure authentication
 
 Enable email/password authentication.
 
 For quick MVP testing, email confirmation can be disabled.
 
-### Step 5 — Create Storage bucket
+Step 5 — Create Storage bucket
 
 Create:
 
-```text
 listing-photos
-```
 
 The bucket can be configured for public image viewing.
 
-### Step 6 — Configure Storage policies
+Step 6 — Configure Storage policies
 
 Allow authenticated users to upload listing photos.
 
----
-
-# 🌐 Deployment
+🌐 Deployment
 
 The production application is hosted using Vercel.
 
 Deployment architecture:
 
-```text
 GitHub
    │
    │ Push to main
@@ -418,24 +375,18 @@ React Production App
    │
    ▼
 Supabase
-```
 
 The Vercel project requires these environment variables:
 
-```text
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
-```
 
-Every push to the `main` branch can trigger a new Vercel deployment.
+Every push to the main branch can trigger a new Vercel deployment.
 
----
-
-# 🧪 End-to-End Test
+🧪 End-to-End Test
 
 A complete Food Rescue test should follow this workflow:
 
-```text
 1. Create account
        ↓
 2. Login
@@ -461,109 +412,132 @@ A complete Food Rescue test should follow this workflow:
 12. Claimant marks it as Picked Up
        ↓
 13. Listing moves to Picked Up
-```
+Expiration Test
 
-This verifies the main product workflow from beginning to end.
+To test pickup expiration:
 
----
+1. Create a listing
+       ↓
+2. Set pickup end time to the past
+       ↓
+3. Open Available
+       ↓
+4. Listing should not appear as active
 
-# 🎯 MVP Scope
+This verifies the pickup-window expiration logic.
+
+🎯 MVP Scope
 
 Food Rescue intentionally focuses on the core food-rescue workflow.
 
-## Included
-
-- Authentication
-- Food listings
-- Food descriptions
-- Quantity
-- Pickup location
-- Pickup time window
-- Food photos
-- Available listings
-- Claiming
-- Picked-up status
-- PostgreSQL persistence
-- Supabase Auth
-- Supabase Storage
-- Row-Level Security
-- Vercel deployment
-
-## Not included yet
-
-- GPS-based discovery
-- Maps
-- Chat
-- Push notifications
-- Ratings
-- Payments
-- Advanced recommendation system
-- Admin dashboard
-- Real-time notifications
-- Business verification
-- AI food classification
+Included
+Authentication
+User signup
+User login
+Logout
+Food listings
+Food descriptions
+Quantity
+Pickup location
+Pickup time window
+Food photos
+Supabase Storage
+Available listings
+Claimed listings
+Picked Up listings
+My Listings
+Atomic claiming
+Pickup completion
+Pickup-window expiration handling
+PostgreSQL persistence
+Supabase Auth
+Row-Level Security
+Vercel deployment
+Responsive interface
+Not included yet
+GPS-based discovery
+Maps
+Chat
+Push notifications
+Ratings
+Payments
+Advanced recommendation system
+Admin dashboard
+Real-time notifications
+Business verification
+AI food classification
 
 These features can be added in future versions.
 
----
-
-# 🔮 Future Improvements
+🔮 Future Improvements
 
 Possible future versions could include:
 
-### 📍 Location-based discovery
+📍 Location-based discovery
 
 Show surplus food based on distance from the user.
 
-### 🗺️ Map integration
+🗺️ Map integration
 
 Display nearby food listings on a map.
 
-### ⚡ Real-time updates
+⚡ Real-time updates
 
 Use Supabase Realtime so listings update immediately when someone claims them.
 
-### 🔔 Notifications
+🔔 Notifications
 
 Notify users when:
 
-- New food becomes available
-- Their listing is claimed
-- Pickup time is approaching
+New food becomes available
+Their listing is claimed
+Pickup time is approaching
+A listing is about to expire
+🏪 Business accounts
 
-### 🏪 Business accounts
+Allow restaurants, hotels, cafes, bakeries, grocery stores, and other organizations to create verified accounts.
 
-Allow restaurants, hotels, cafes, bakeries, and stores to create verified accounts.
-
-### 📊 Impact dashboard
+📊 Impact dashboard
 
 Track:
 
-```text
 Meals rescued
 Food listings
 Successful pickups
 Estimated food waste prevented
 Active contributors
-```
-
-### ⭐ Community reputation
+⭐ Community reputation
 
 Add ratings and reliability scores for users and organizations.
 
----
+🛡️ Listing moderation
 
-# 💡 Why Food Rescue?
+Add reporting and moderation tools to handle:
+
+Incorrect listings
+Unsafe food
+Spam
+Inappropriate images
+Fraudulent accounts
+🧠 Smart matching
+
+Eventually recommend listings based on:
+
+Distance
+Pickup time
+Food type
+User preferences
+Availability
+💡 Why Food Rescue?
 
 A large amount of edible food is discarded because it becomes surplus before it can be consumed.
 
 Food Rescue focuses on a simple idea:
 
-> **Make surplus food visible to people who can use it before it becomes waste.**
+Make surplus food visible to people who can use it before it becomes waste.
 
 Instead of building a complicated marketplace, the MVP provides a simple local board:
 
-```text
 Someone has extra food
         ↓
 Post it
@@ -575,63 +549,68 @@ Claim it
 Pick it up
         ↓
 Food is rescued
-```
-
----
-
-# 🤝 Contributing
+🤝 Contributing
 
 Contributions and improvements are welcome.
 
 Create a feature branch:
 
-```bash
 git checkout -b feature/your-feature
-```
 
 Make your changes:
 
-```bash
 git add .
-```
 
 Commit:
 
-```bash
 git commit -m "Add your feature"
-```
 
 Push:
 
-```bash
 git push origin feature/your-feature
-```
 
 Then create a Pull Request on GitHub.
 
----
-
-# 📄 License
+📄 License
 
 This project is currently developed as an MVP / innovation project.
 
 MIT
 
----
-
-# 💚 Mission
+💚 Mission
 
 Food that can still be eaten should not become waste simply because it is surplus.
 
-**Food Rescue connects surplus food with people who can use it — quickly, locally, and simply.**
+Food Rescue connects surplus food with people who can use it — quickly, locally, and simply.
 
 Built with:
 
-**React + TypeScript + Tailwind CSS + Supabase + Vercel**
+React + TypeScript + Tailwind CSS + Supabase + Vercel
 
----
+🚧 Project Status
 
-## 🔗 Repository
+Food Rescue started as a rapid MVP and is now being developed beyond the initial hackathon version.
+
+The current application supports the core rescue workflow:
+
+Post
+  ↓
+Discover
+  ↓
+Claim
+  ↓
+Pick Up
+
+The next stage is to evolve it into a more scalable local food-rescue platform with:
+
+Better location discovery
+Real-time updates
+Notifications
+Business accounts
+Trust and safety
+Impact tracking
+Community features
+🔗 Repository
 
 GitHub:
 
