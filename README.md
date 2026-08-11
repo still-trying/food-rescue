@@ -88,22 +88,21 @@ The React application communicates directly with Supabase.
 📊 Listing Lifecycle
 
 Every food listing follows this lifecycle:
-
-┌───────────┐
-│ Available │
-└─────┬─────┘
-      │
-      │ User claims food
-      ▼
-┌───────────┐
-│  Claimed  │
-└─────┬─────┘
-      │
-      │ Food collected
-      ▼
-┌────────────┐
-│ Picked Up  │
-└────────────┘
+           ┌───────────┐
+           │ Available │
+           └─────┬─────┘
+                 │
+                 │ User claims food
+                 ▼
+          ┌───────────┐
+          │  Claimed  │
+          └─────┬─────┘
+                │
+                │ Food collected
+               ▼
+         ┌────────────┐
+         │ Picked Up  │
+         └────────────┘
 
 Each listing contains a pickup window so users know when the food can be collected.
 
@@ -111,16 +110,14 @@ Pickup expiration
 
 The application uses the existing pickup_window_end field to determine whether an available listing has expired.
 
-Available
-    │
-    │ pickup_window_end reached
-    ▼
-Removed from active Available feed
-
+        Available
+          │
+          │ pickup_window_end reached
+          ▼
+    Removed from active Available feed
 The database does not currently use a separate expired status.
 
 This keeps the lifecycle simple while preventing expired available food from remaining claimable.
-
 🗄️ Database
 
 The core application uses a PostgreSQL listings table in Supabase.
@@ -385,44 +382,44 @@ Every push to the main branch can trigger a new Vercel deployment.
 
 🧪 End-to-End Test
 
-A complete Food Rescue test should follow this workflow:
+ A complete Food Rescue test should follow this workflow:
 
-1. Create account
+ 1. Create account
        ↓
-2. Login
+ 2. Login
        ↓
-3. Click "Post Surplus"
+ 3. Click "Post Surplus"
        ↓
-4. Enter food information
+ 4. Enter food information
        ↓
-5. Add pickup location
+ 5. Add pickup location
        ↓
-6. Add pickup window
+ 6. Add pickup window
        ↓
-7. Upload optional photo
+ 7. Upload optional photo
        ↓
-8. Post food
+ 8. Post food
        ↓
-9. Listing appears under Available
+ 9. Listing appears under Available
        ↓
-10. Another user claims it
+ 10. Another user claims it
        ↓
-11. Listing moves to Claimed
+ 11. Listing moves to Claimed
        ↓
-12. Claimant marks it as Picked Up
+ 12. Claimant marks it as Picked Up
        ↓
-13. Listing moves to Picked Up
+ 13. Listing moves to Picked Up
 Expiration Test
 
 To test pickup expiration:
 
-1. Create a listing
+ 1. Create a listing
        ↓
-2. Set pickup end time to the past
+ 2. Set pickup end time to the past
        ↓
-3. Open Available
+ 3. Open Available
        ↓
-4. Listing should not appear as active
+ 4. Listing should not appear as active
 
 This verifies the pickup-window expiration logic.
 
@@ -538,17 +535,17 @@ Make surplus food visible to people who can use it before it becomes waste.
 
 Instead of building a complicated marketplace, the MVP provides a simple local board:
 
-Someone has extra food
+ Someone has extra food
         ↓
-Post it
+ Post it
         ↓
-Someone nearby sees it
+ Someone nearby sees it
         ↓
-Claim it
+ Claim it
         ↓
-Pick it up
+ Pick it up
         ↓
-Food is rescued
+ Food is rescued
 🤝 Contributing
 
 Contributions and improvements are welcome.
@@ -593,13 +590,13 @@ Food Rescue started as a rapid MVP and is now being developed beyond the initial
 
 The current application supports the core rescue workflow:
 
-Post
+ Post
   ↓
-Discover
+ Discover
   ↓
-Claim
+ Claim
   ↓
-Pick Up
+ Pick Up
 
 The next stage is to evolve it into a more scalable local food-rescue platform with:
 
@@ -615,3 +612,4 @@ Community features
 GitHub:
 
 https://github.com/still-trying/food-rescue
+
