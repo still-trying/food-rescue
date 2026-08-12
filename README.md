@@ -120,13 +120,15 @@ Food Rescue does not require a separate Express, Node.js, or FastAPI backend. Th
 flowchart TD
     U(["👤 User"]) --> V["▲ Vercel<br/>Hosts the React App"]
     V --> B["🖥️ Browser<br/>React + Vite + TypeScript"]
-    B <-->|REST + Realtime API| S[("🗄️ Supabase<br/>PostgreSQL · Auth · Storage · RLS")]
+    B <--> S[("🗄️ Supabase<br/>PostgreSQL · Auth · Storage · RLS")]
 
     style U fill:#f5f5f5,stroke:#999999,color:#000000
     style V fill:#111111,stroke:#333333,color:#ffffff
     style B fill:#61DAFB,stroke:#20232a,color:#000000
     style S fill:#3ECF8E,stroke:#1a1a1a,color:#000000
 ```
+
+*The browser talks to Supabase directly over its REST and Realtime APIs — no server in between.*
 
 ---
 
@@ -136,13 +138,15 @@ Every food listing follows this lifecycle. Each listing carries a pickup window 
 
 ```mermaid
 flowchart LR
-    A(["📝 Available"]) -->|User claims food| B(["🤝 Claimed"])
-    B -->|Food collected| C(["✅ Picked Up"])
+    A(["📝 Available"]) --> B(["🤝 Claimed"])
+    B --> C(["✅ Picked Up"])
 
     style A fill:#FFD166,stroke:#b8860b,color:#000000
     style B fill:#06D6A0,stroke:#04795a,color:#000000
     style C fill:#118AB2,stroke:#0b5c73,color:#ffffff
 ```
+
+*Available → Claimed when a user claims the food. Claimed → Picked Up once it's collected.*
 
 ---
 
@@ -152,11 +156,13 @@ The application uses the existing `pickup_window_end` field to determine whether
 
 ```mermaid
 flowchart LR
-    A(["📝 Available"]) -->|pickup_window_end reached| B(["⌛ Removed from Available feed"])
+    A(["📝 Available"]) --> B(["⌛ Removed from feed"])
 
     style A fill:#FFD166,stroke:#b8860b,color:#000000
     style B fill:#EF476F,stroke:#a3223f,color:#ffffff
 ```
+
+*Triggered once `pickup_window_end` passes.*
 
 > [!NOTE]
 > The database does not currently use a separate `expired` status. This keeps the lifecycle simple while preventing expired available food from remaining claimable.
