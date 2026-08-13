@@ -14,8 +14,9 @@
 [![Vercel](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](#-license)
 
-<!-- 📸 Add a demo screenshot or GIF here — this is the single biggest visual upgrade you can make for judging -->
-<!-- 🔗 Add your live Vercel demo link here once deployed -->
+<!-- 📸 Replace this line with a real demo screenshot or GIF before sharing this repo -->
+<!-- 🔗 Replace the # below with your live Vercel URL -->
+**[Live Demo](#)** · **[Report Bug](../../issues)** · **[Request Feature](../../issues)**
 
 </div>
 
@@ -24,6 +25,7 @@
 ## 📚 Table of Contents
 
 - [What is Food Rescue?](#-what-is-food-rescue)
+- [Screenshots](#-screenshots)
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
 - [Architecture](#-architecture)
@@ -51,45 +53,84 @@
 
 ## 🌱 What is Food Rescue?
 
-Food Rescue is a full-stack MVP that helps restaurants, kitchens, stores, and individuals share surplus food before it goes to waste.
+Food Rescue is a full-stack app that helps restaurants, kitchens, stores, and individuals share surplus food before it goes to waste.
 
-A user posts an available food listing with a pickup location, time window, quantity, description, and optional photo. Other authenticated users can view the listing and claim it.
+A user posts a listing with a pickup location, time window, quantity, description, and optional photo. Other authenticated users can view it and claim it.
 
 > [!NOTE]
 > **Lifecycle:** `Available → Claimed → Picked Up`
-> Listings whose pickup window has ended are automatically removed from the active Available feed.
+>
+> Available listings automatically stop appearing in the active feed once their pickup window ends.
 
-The project focuses on making the core food-rescue workflow simple, fast, and reliable.
+The project started as a rapid hackathon MVP and is now being hardened with stronger database security, expiration handling, ownership controls, and a more reliable claiming workflow.
+
+---
+
+## 📸 Screenshots
+
+<!-- Add real screenshots or a short GIF of the claim flow (post → claim → picked up) here before you submit or share this repo.
+For a hackathon README, this section gets more attention from judges/recruiters than any diagram below it. -->
+
+| Available Feed | Claim Flow | My Listings |
+|:---:|:---:|:---:|
+| _screenshot_ | _screenshot_ | _screenshot_ |
 
 ---
 
 ## ✨ Features
 
-**🔐 Authentication**
+### 🔐 Authentication
 - Email/password authentication
-- User signup with name
+- Signup, login, logout
+- Authenticated-only application access
+- User identity handled through Supabase Auth
 
-**🍱 Listings**
+### 🍱 Listings
 - Create surplus-food listings
 - Food name and description
 - Quantity information
 - Pickup area
 - Pickup start and end time window
 - Optional food photo upload
+- Persistent PostgreSQL storage
 
-**🗂️ Workflow**
+### 🗂️ Listing Workflow
 - Available / Claimed / Picked Up sections
-- My Listings view
-- ⚡ Atomic food claiming — no double-claims possible
+- My Listings section
+- Atomic food claiming
 - Mark claimed food as picked up
 - Pickup-window expiration handling
+- Expired listings cannot be claimed
+- Stale UI is protected against expired claims
 
-**☁️ Infrastructure**
-- Persistent PostgreSQL storage
-- Row-Level Security with Supabase
-- Supabase Storage for food photos
+### 👤 My Listings
+Users can view the listings they personally posted — tracked independently from the global Available, Claimed, and Picked Up feeds.
+
+### 🛡️ Security
+- Supabase Row-Level Security
+- Authenticated database access
+- Users can only create listings for themselves
+- Users cannot impersonate another user
+- Claiming requires the listing to still be available
+- Claiming requires the pickup window to still be active
+- Only the claimant can mark food as picked up
+- Users cannot freely modify other users' listings
+- Database-level protection against stale and unauthorized updates
+
+### 📸 Photos
+- Optional food image upload
+- Images stored in Supabase Storage
+- Image URL stored in PostgreSQL
+- Uploaded images displayed on listing cards
+
+### ☁️ Infrastructure
+- PostgreSQL database
+- Supabase Authentication
+- Supabase Storage
+- Supabase Row-Level Security
 - Vercel deployment
-- Responsive interface
+- GitHub source control
+- Responsive React interface
 
 ---
 
@@ -105,7 +146,7 @@ The project focuses on making the core food-rescue workflow simple, fast, and re
 | Styling | Tailwind CSS v4 | Utility-first styling |
 | Backend | Supabase | BaaS: DB, auth, storage |
 | Database | PostgreSQL | Relational data store |
-| Authentication | Supabase Auth | Email/password auth |
+| Authentication | Supabase Auth | Email/password authentication |
 | File Storage | Supabase Storage | Food photo uploads |
 | Hosting | Vercel | Production hosting |
 | Version Control | Git + GitHub | Source control |
@@ -114,7 +155,7 @@ The project focuses on making the core food-rescue workflow simple, fast, and re
 
 ## 🏗️ Architecture
 
-Food Rescue does not require a separate Express, Node.js, or FastAPI backend. The React application communicates directly with Supabase.
+Food Rescue does not require a separate Express, Node.js, or FastAPI backend — the React app talks to Supabase directly.
 
 ```mermaid
 flowchart TD
@@ -128,142 +169,157 @@ flowchart TD
     style S fill:#3ECF8E,stroke:#1a1a1a,color:#000000
 ```
 
-*The browser talks to Supabase directly over its REST and Realtime APIs — no server in between.*
+Supabase handles:
+- Authentication
+- PostgreSQL database
+- Row-Level Security
+- Storage
+- Database-level authorization
 
 ---
 
 ## 📊 Listing Lifecycle
 
-Every food listing follows this lifecycle. Each listing carries a pickup window so users know when the food can be collected.
+Every food listing follows a controlled lifecycle.
 
 ```mermaid
 flowchart LR
     A(["📝 Available"]) --> B(["🤝 Claimed"])
     B --> C(["✅ Picked Up"])
+    A --> D(["⌛ Expired"])
 
     style A fill:#FFD166,stroke:#b8860b,color:#000000
     style B fill:#06D6A0,stroke:#04795a,color:#000000
     style C fill:#118AB2,stroke:#0b5c73,color:#ffffff
+    style D fill:#EF476F,stroke:#a3223f,color:#ffffff
 ```
 
-*Available → Claimed when a user claims the food. Claimed → Picked Up once it's collected.*
+**Normal flow:** `Available → Claimed → Picked Up`
+
+**Expiration flow:** `Available → pickup window ends → no longer claimable → removed from active feed`
+
+> The database keeps the original `available` status rather than introducing a separate `expired` status — expiry is derived from `pickup_window_end`, not stored as its own state.
 
 ---
 
 ## ⏳ Pickup Expiration
 
-The application uses the existing `pickup_window_end` field to determine whether an available listing has expired.
+A listing is considered expired when:
 
-```mermaid
-flowchart LR
-    A(["📝 Available"]) --> B(["⌛ Removed from feed"])
-
-    style A fill:#FFD166,stroke:#b8860b,color:#000000
-    style B fill:#EF476F,stroke:#a3223f,color:#ffffff
+```
+status = 'available' AND pickup_window_end <= now()
 ```
 
-*Triggered once `pickup_window_end` passes.*
+**Three layers of protection**, from least to most authoritative:
 
-> [!NOTE]
-> The database does not currently use a separate `expired` status. This keeps the lifecycle simple while preventing expired available food from remaining claimable.
+1. **UI** — the Claim button is hidden once `pickup_window_end` has passed; the user instead sees `⏰ Pickup window expired`.
+2. **Client query** — the claim request itself filters on `pickup_window_end > now()` (exact query in [Atomic Claiming](#-atomic-claiming)).
+3. **Database (RLS)** — the `UPDATE` policy independently re-checks `pickup_window_end > now()`, so an expired listing can't be claimed even via a stale tab or a direct API request.
+
+```
+UI hides Claim  →  Claim query filters on time  →  Supabase RLS re-checks time
+   (convenience)         (client-side)                (actual authorization)
+```
 
 ---
 
 ## 🗄️ Database Schema
 
-The core application uses a PostgreSQL `listings` table in Supabase.
-
 ```sql
 create table public.listings (
   id uuid primary key default gen_random_uuid(),
-
   title text not null,
-
   description text,
-
   quantity text,
-
   photo_url text,
-
   location_text text not null,
-
   pickup_window_start timestamptz not null,
-
   pickup_window_end timestamptz not null,
-
   status text not null default 'available'
-    check (
-      status in (
-        'available',
-        'claimed',
-        'picked_up'
-      )
-    ),
-
-  posted_by uuid not null
-    references auth.users(id),
-
-  claimed_by uuid
-    references auth.users(id),
-
-  created_at timestamptz not null
-    default now()
+    check (status in ('available', 'claimed', 'picked_up')),
+  posted_by uuid not null references auth.users(id),
+  claimed_by uuid references auth.users(id),
+  created_at timestamptz not null default now()
 );
-```
 
-An index is used to efficiently retrieve listings:
-
-```sql
 create index listings_status_created_idx
-on public.listings (
-  status,
-  created_at desc
-);
+  on public.listings (status, created_at desc);
 ```
 
 ---
 
 ## ⚡ Atomic Claiming
 
-One of the most important parts of Food Rescue is preventing two people from claiming the same food. The application only allows a listing to be updated if its current status is `available`.
+The most important guarantee in Food Rescue: **two people can never claim the same food.**
 
-```typescript
+The client only updates a listing when three conditions all still hold at the moment of the request:
+
+```ts
 const { data, error } = await supabase
   .from('listings')
   .update({
     status: 'claimed',
-    claimed_by: user.id,
+    claimed_by: currentUserId,
   })
-  .eq('id', listingId)
+  .eq('id', listing.id)
   .eq('status', 'available')
+  .gt('pickup_window_end', new Date().toISOString())
   .select()
-  .maybeSingle()
+  .maybeSingle();
 ```
 
+| Condition | Why it matters |
+|---|---|
+| `id = <listing>` | Targets the exact listing being claimed |
+| `status = 'available'` | If another user claimed it first, this no longer matches — the update touches zero rows |
+| `pickup_window_end > now()` | An expired listing can't be claimed even by a fast second request |
+
 > [!IMPORTANT]
-> The critical condition is `.eq('status', 'available')`. If another user has already claimed the listing, this update matches zero rows — the second request cannot overwrite the existing claim. This provides database-level protection against double claiming.
+> This isn't just application logic — the same two conditions are enforced independently by the Supabase RLS `UPDATE` policy. The frontend gives immediate feedback; **the database is the actual authorization boundary.** If the two ever drift apart, the RLS policy wins — treat it as the source of truth.
 
 ---
 
 ## 🔒 Security
 
-Supabase Row-Level Security (RLS) controls database access. The policies guarantee:
+Supabase Row-Level Security (RLS) controls all database access — the frontend is never trusted as the authorization boundary.
 
-- [x] Authenticated users can view food listings
-- [x] Users can create listings for themselves
-- [x] Users cannot impersonate another user when creating a listing
-- [x] Users can claim available food
+- **SELECT** — authenticated users can view listings.
+- **INSERT** — allowed only when `posted_by = auth.uid()`, preventing one user from posting on another's behalf.
+- **UPDATE** — split by listing state:
+  - Available listing: `status = 'available' AND pickup_window_end > now()`
+  - Claimed listing: `status = 'claimed' AND claimed_by = auth.uid()`
+
+Current guarantees:
+
+- [x] Authenticated-only database access
+- [x] Users can view listings
+- [x] Users can create listings only for themselves
+- [x] Users cannot impersonate another user on insert
+- [x] Available listings can only be claimed while their pickup window is active
+- [x] Expired listings cannot be claimed
 - [x] A listing cannot be claimed twice
-- [x] Only the user who claimed food can mark it as picked up
-- [x] Users cannot freely modify other users' listings
+- [x] Only the claimant can mark a listing as picked up
+- [x] Users cannot freely modify another user's listing
 
-Authentication is handled through Supabase Auth.
+**Defense in depth:**
+
+```
+Frontend (hide expired Claim button)
+   ↓
+Claim query (filters on status + time)
+   ↓
+Supabase RLS (re-validates status + time)
+   ↓
+PostgreSQL (commits the update)
+```
+
+This protects against stale browser tabs, manipulated requests, and two users racing to claim the same listing.
 
 ---
 
 ## 📸 Photo Upload
 
-Food Rescue supports optional food photos, stored in a Supabase Storage bucket named `listing-photos`. Only the image URL is stored in the listing record — the photo itself lives in Storage, not in PostgreSQL.
+Photos are optional and stored in a Supabase Storage bucket named `listing-photos`. Only the resulting URL is stored in Postgres — not the image itself.
 
 ```mermaid
 flowchart LR
@@ -285,11 +341,7 @@ flowchart LR
 
 ## 📋 My Listings
 
-Food Rescue includes a My Listings view. Users can see listings they personally posted and track their current status:
-
-![Available](https://img.shields.io/badge/-Available-FFD166) ![Claimed](https://img.shields.io/badge/-Claimed-06D6A0) ![Picked Up](https://img.shields.io/badge/-Picked_Up-118AB2)
-
-This gives contributors a simple way to track the food they've shared.
+A dedicated view filtering the existing `listings` table by `posted_by === userId` — no separate database table required. Lets contributors track food they personally posted, distinct from the global feeds.
 
 ---
 
@@ -298,28 +350,22 @@ This gives contributors a simple way to track the food they've shared.
 <details>
 <summary>Click to expand</summary>
 
-```text
+```
 food-rescue/
-│
 ├── public/
-│
 ├── src/
 │   ├── assets/
-│   │
 │   ├── components/
 │   │   ├── Auth.tsx
 │   │   ├── ListingCard.tsx
 │   │   ├── ListingFeed.tsx
 │   │   └── PostListingForm.tsx
-│   │
 │   ├── lib/
 │   │   └── supabase.ts
-│   │
 │   ├── App.tsx
 │   ├── App.css
 │   ├── index.css
 │   └── main.tsx
-│
 ├── .env
 ├── .gitignore
 ├── index.html
@@ -336,50 +382,53 @@ food-rescue/
 
 ## 🚀 Getting Started
 
-**Prerequisites:** Node.js 18+, npm, and a free [Supabase](https://supabase.com) account.
+### Prerequisites
+- Node.js 18+
+- npm
+- A free [Supabase](https://supabase.com) account
 
-#### 1. Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/still-trying/food-rescue.git
 cd food-rescue
 ```
 
-#### 2. Install dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-#### 3. Configure environment variables
+### 3. Configure environment variables
 
 Create a `.env` file in the project root:
 
-```bash
+```
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 > [!WARNING]
-> Never commit your `.env` file. `.gitignore` should contain:
+> Never commit your `.env` file. Confirm `.gitignore` includes:
 > ```
 > .env
 > .env.local
 > ```
 
-#### 4. Run locally
+### 4. Run locally
 
 ```bash
 npm run dev
 ```
 
-The application will normally be available at `http://localhost:5173`.
+The app runs at `http://localhost:5173`.
 
-#### 5. Production build
+### 5. Production build
 
 ```bash
 npm run build
-npm run preview   # preview the production build locally
+npm run preview
 ```
 
 ---
@@ -388,18 +437,21 @@ npm run preview   # preview the production build locally
 
 To reproduce the backend:
 
-- [ ] **Create Supabase project** — spin up a new project in the Supabase dashboard
-- [ ] **Create database table** — run the `listings` schema from [Database Schema](#-database-schema)
-- [ ] **Enable Row-Level Security** — turn on RLS for the `listings` table
-- [ ] **Configure authentication** — enable email/password auth (email confirmation can be disabled for quick MVP testing)
-- [ ] **Create Storage bucket** — create `listing-photos`; it can be configured for public image viewing
-- [ ] **Configure Storage policies** — allow authenticated users to upload listing photos
+- [ ] Create a new Supabase project
+- [ ] Run the schema from [Database Schema](#-database-schema)
+- [ ] Enable Row-Level Security on the `listings` table
+- [ ] Enable email/password authentication
+- [ ] Create a Storage bucket named `listing-photos`
+- [ ] Add Storage policies allowing authenticated uploads
+- [ ] Add the listing `INSERT` policy
+- [ ] Add the listing `SELECT` policy
+- [ ] Add the listing `UPDATE` policy — must require `pickup_window_end > now()` on claim
 
 ---
 
 ## 🌐 Deployment
 
-The production application is hosted on Vercel.
+Hosted on Vercel, deployed on every push to `main`.
 
 ```mermaid
 flowchart LR
@@ -413,41 +465,42 @@ flowchart LR
     style D fill:#3ECF8E,stroke:#1a1a1a,color:#000000
 ```
 
-The Vercel project requires these environment variables:
-
-```bash
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
-```
-
-Every push to the `main` branch can trigger a new Vercel deployment.
+Set these in the Vercel project settings:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
 
 ---
 
 ## 🧪 Testing
 
-#### End-to-End Flow
+**Authentication**
+- [ ] Create account, login, logout
+- [ ] Unauthenticated users cannot access the main application
 
-- [ ] Create account
-- [ ] Login
-- [ ] Click "Post Surplus"
-- [ ] Enter food information
-- [ ] Add pickup location
-- [ ] Add pickup window
-- [ ] Upload optional photo
-- [ ] Post food
+**Listing Creation**
+- [ ] Post surplus food with description, location, pickup window, optional photo
 - [ ] Listing appears under Available
-- [ ] Another user claims it
-- [ ] Listing moves to Claimed
-- [ ] Claimant marks it as Picked Up
-- [ ] Listing moves to Picked Up
 
-#### Expiration Test
+**Claiming**
+- [ ] User A creates a listing; User B claims it and it moves to Claimed
+- [ ] A second user cannot claim an already-claimed listing
+- [ ] Only the claimant can mark it as Picked Up
 
-- [ ] Create a listing
-- [ ] Set pickup end time to the past
-- [ ] Open Available
-- [ ] Listing should not appear as active
+**Expiration**
+- [ ] A listing with a past pickup end time does not appear as active and hides the Claim button, showing `⏰ Pickup window expired`
+- [ ] A claim attempted through a stale browser tab against an expired listing is rejected by the database
+
+**Security**
+- [ ] `INSERT` cannot use another user's `posted_by`
+- [ ] An expired or already-claimed listing cannot be claimed
+- [ ] A non-claimant cannot mark a listing as picked up
+- [ ] Users cannot freely update another user's listing
+
+**Photo Upload**
+- [ ] Uploaded image appears on the Listing Card and in the `listing-photos` bucket, with `photo_url` stored on the listing
+
+**My Listings**
+- [ ] A user's own listing appears in My Listings; another user's listings do not
 
 ---
 
@@ -459,38 +512,44 @@ Food Rescue intentionally focuses on the core food-rescue workflow.
 <tr>
 <td valign="top" width="50%">
 
-### ✅ Included
+**✅ Included**
 
-- [x] Authentication (signup, login, logout)
-- [x] Food listings, descriptions, quantity
-- [x] Pickup location & time window
+- [x] Authentication (signup / login / logout)
+- [x] Food listings — name, description, quantity
+- [x] Pickup location, start & end time window
 - [x] Food photos via Supabase Storage
 - [x] Available / Claimed / Picked Up states
 - [x] My Listings view
 - [x] Atomic claiming
-- [x] Pickup completion
 - [x] Pickup-window expiration handling
+- [x] Frontend stale-expiration protection
+- [x] Database-level expiration protection
+- [x] Secure `UPDATE` authorization (RLS)
 - [x] PostgreSQL persistence
 - [x] Row-Level Security
+- [x] Supabase Storage
 - [x] Vercel deployment
 - [x] Responsive interface
 
 </td>
 <td valign="top" width="50%">
 
-### 🔜 Not Included Yet
+**🔜 Not Included Yet**
 
-- [ ] GPS-based discovery
-- [ ] Maps
-- [ ] Chat
+- [ ] GPS-based discovery / maps
+- [ ] Chat between poster and claimant
 - [ ] Push notifications
-- [ ] Ratings
+- [ ] Ratings & reputation
 - [ ] Payments
-- [ ] Advanced recommendation system
+- [ ] Recommendation system
 - [ ] Admin dashboard
-- [ ] Real-time notifications
+- [ ] Real-time listing updates
 - [ ] Business verification
 - [ ] AI food classification
+- [ ] Automated expired-listing cleanup
+- [ ] User profiles
+- [ ] Food categories
+- [ ] Search & filtering
 
 </td>
 </tr>
@@ -503,22 +562,27 @@ Food Rescue intentionally focuses on the core food-rescue workflow.
 | Feature | Description |
 |---|---|
 | 📍 Location-based discovery | Show surplus food based on distance from the user |
+| 🔎 Search & filtering | By food name, category, quantity, location, pickup time |
 | 🗺️ Map integration | Display nearby food listings on a map |
-| ⚡ Real-time updates | Supabase Realtime so listings update immediately when claimed |
-| 🔔 Notifications | Alert on new food, claims, approaching pickup, expiring listings |
-| 🏪 Business accounts | Verified accounts for restaurants, hotels, cafes, bakeries, grocery stores |
-| 📊 Impact dashboard | Track meals rescued, listings, pickups, waste prevented, contributors |
-| ⭐ Community reputation | Ratings and reliability scores for users and organizations |
-| 🛡️ Listing moderation | Reporting/moderation tools for bad listings, spam, fraud |
-| 🧠 Smart matching | Recommend listings by distance, pickup time, food type, preferences |
+| ⚡ Real-time updates | Supabase Realtime so listings update instantly when claimed |
+| 🔔 Notifications | New food, claims, approaching/expiring pickup |
+| 🏪 Business accounts | Verified accounts for restaurants, hotels, cafes, grocery stores |
+| 📊 Impact dashboard | Meals rescued, pickups, waste prevented, contributors |
+| ⭐ Community reputation | Ratings and reliability scores |
+| 🛡️ Listing moderation | Reporting and moderation tools |
+| 🧠 Smart matching | Recommend listings by distance, timing, food type |
+| 👤 User profiles | Contributor and organization info |
+| 🗂️ Food categories | Cooked meals, bakery items, groceries, etc. |
+| ⏰ Automated expiration | Scheduled backend job to transition expired records |
+| 📈 Analytics | Platform activity and food-waste reduction tracking |
 
 ---
 
 ## 💡 Why Food Rescue?
 
-A large amount of edible food is discarded because it becomes surplus before it can be consumed. Food Rescue focuses on a simple idea: **make surplus food visible to people who can use it before it becomes waste.**
+A large amount of edible food becomes waste simply because it becomes surplus before it can be consumed. Food Rescue's core idea: **make surplus food visible to people who can use it before it becomes waste.**
 
-Instead of building a complicated marketplace, the MVP provides a simple local board:
+Instead of a complicated marketplace, the MVP is a simple local board:
 
 ```mermaid
 flowchart LR
@@ -540,7 +604,7 @@ flowchart LR
 
 ## 🤝 Contributing
 
-Contributions and improvements are welcome.
+Contributions and improvements are welcome. For anything non-trivial, open an issue first to discuss the change.
 
 ```bash
 git checkout -b feature/your-feature
@@ -555,9 +619,9 @@ Then open a Pull Request on GitHub.
 
 ## 📄 License
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](#-license)
+MIT — see [`LICENSE`](./LICENSE).
 
-This project is currently developed as an MVP / innovation project, licensed under MIT.
+> If there's no `LICENSE` file in the repo root yet, add one — GitHub can generate a standard MIT license file for you from the "Add file" menu, so the badge above actually points to something.
 
 ---
 
@@ -565,9 +629,9 @@ This project is currently developed as an MVP / innovation project, licensed und
 
 <div align="center">
 
-*Food that can still be eaten should not become waste simply because it is surplus.*
+Food that can still be eaten should not become waste simply because it is surplus.
 
-**Food Rescue connects surplus food with people who can use it — quickly, locally, and simply.**
+Food Rescue connects surplus food with people who can use it — quickly, locally, and simply.
 
 </div>
 
@@ -575,7 +639,9 @@ This project is currently developed as an MVP / innovation project, licensed und
 
 ## 🚧 Project Status
 
-Food Rescue started as a rapid MVP and is now being developed beyond the initial hackathon version. The current application supports the core rescue workflow:
+Food Rescue started as a rapid hackathon MVP and has moved from a basic functional prototype toward a more secure, production-oriented application.
+
+**Current core workflow**
 
 ```mermaid
 flowchart LR
@@ -589,24 +655,40 @@ flowchart LR
     style D fill:#8338EC,stroke:#5b0fb3,color:#ffffff
 ```
 
-**Next stage** — evolving into a more scalable local food-rescue platform:
+**Security and reliability improvements so far**
 
-- [ ] Better location discovery
-- [ ] Real-time updates
-- [ ] Notifications
-- [ ] Business accounts
-- [ ] Trust and safety
-- [ ] Impact tracking
-- [ ] Community features
+```
+                    Food Rescue
+                         │
+        ┌────────────────┼────────────────┐
+        ↓                ↓                ↓
+   Authentication    RLS Security     Expiration
+        │                │                │
+        ↓                ↓                ↓
+    User identity   Authorization     Pickup window
+                         │                │
+                         ↓                ↓
+                  Secure updates    No stale claims
+```
 
----
+Implemented:
+- [x] Authentication, food listings, food photos, pickup windows
+- [x] Available / Claimed / Picked Up workflow + My Listings
+- [x] Atomic claiming
+- [x] Pickup expiration handling (frontend + database-level)
+- [x] Secure `UPDATE` RLS policy, claimant-only pickup completion
+- [x] Supabase Storage, PostgreSQL persistence, Vercel deployment
+
+Next stage:
+- [ ] Better location discovery, search & filtering
+- [ ] Real-time updates, notifications
+- [ ] Business accounts, trust & safety
+- [ ] Impact tracking, community features
+- [ ] Automated expiration workflows
 
 <div align="center">
 
-**🔗 [github.com/still-trying/food-rescue](https://github.com/still-trying/food-rescue)**
-
-![GitHub last commit](https://img.shields.io/github/last-commit/still-trying/food-rescue?style=for-the-badge)
-![GitHub stars](https://img.shields.io/github/stars/still-trying/food-rescue?style=for-the-badge)
+🔗 [github.com/still-trying/food-rescue](https://github.com/still-trying/food-rescue)
 
 Made with 🍱 + ☕ — if this is useful, a ⭐ helps.
 
