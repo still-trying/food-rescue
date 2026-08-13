@@ -33,23 +33,31 @@ export default function ListingCard({
   currentUserId,
   onUpdated,
 }: Props) {
+  // An available listing is expired once its pickup window has ended.
+  const isExpired =
+    listing.status === 'available' &&
+    new Date(listing.pickup_window_end) <= new Date()
+
   const handleClaim = async () => {
     if (!currentUserId) {
       alert('Please log in first.')
       return
     }
 
-   const { data, error } = await supabase
-  .from('listings')
-  .update({
-    status: 'claimed',
-    claimed_by: currentUserId,
-  })
-  .eq('id', listing.id)
-  .eq('status', 'available')
-  .gt('pickup_window_end', new Date().toISOString())
-  .select()
-  .maybeSingle()
+    // Database-level protection:
+    // the listing must still be available AND its pickup
+    // window must not have expired.
+    const { data, error } = await supabase
+      .from('listings')
+      .update({
+        status: 'claimed',
+        claimed_by: currentUserId,
+      })
+      .eq('id', listing.id)
+      .eq('status', 'available')
+      .gt('pickup_window_end', new Date().toISOString())
+      .select()
+      .maybeSingle()
 
     if (error) {
       alert(error.message)
@@ -57,11 +65,11 @@ export default function ListingCard({
     }
 
     if (!data) {
-  alert(
-    'This food is no longer available. It may have expired or already been claimed.'
-  )
-  return
-}
+      alert(
+        'This food is no longer available. It may have expired or already been claimed.'
+      )
+      return
+    }
 
     onUpdated(data as Listing)
   }
@@ -122,13 +130,15 @@ export default function ListingCard({
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
               listing.status === 'available'
-                ? 'bg-green-100 text-green-700'
+                ? isExpired
+                  ? 'bg-red-100 text-red-600'
+                  : 'bg-green-100 text-green-700'
                 : listing.status === 'claimed'
                   ? 'bg-yellow-100 text-yellow-700'
                   : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {listing.status.replace('_', ' ')}
+            {isExpired ? 'expired' : listing.status.replace('_', ' ')}
           </span>
         </div>
 
@@ -153,23 +163,24 @@ export default function ListingCard({
         </div>
 
         <div className="mt-5">
-          {listing.status === 'available' &&
-  new Date(listing.pickup_window_end) > new Date() && (
-    <button
-      onClick={handleClaim}
-      className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
-    >
-      Claim Food
-    </button>
-  )}
+          {/* Available and not expired */}
+          {listing.status === 'available' && !isExpired && (
+            <button
+              onClick={handleClaim}
+              className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
+            >
+              Claim Food
+            </button>
+          )}
 
-{listing.status === 'available' &&
-  new Date(listing.pickup_window_end) <= new Date() && (
-    <div className="rounded-xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
-      ⏰ Pickup window expired
-    </div>
-  )}
+          {/* Available but expired */}
+          {listing.status === 'available' && isExpired && (
+            <div className="rounded-xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+              ⏰ Pickup window expired
+            </div>
+          )}
 
+          {/* Claimed by current user */}
           {listing.status === 'claimed' &&
             listing.claimed_by === currentUserId && (
               <button
@@ -180,6 +191,7 @@ export default function ListingCard({
               </button>
             )}
 
+          {/* Claimed by another user */}
           {listing.status === 'claimed' &&
             listing.claimed_by !== currentUserId && (
               <div className="rounded-xl bg-yellow-50 p-3 text-center text-sm text-yellow-700">
@@ -187,6 +199,7 @@ export default function ListingCard({
               </div>
             )}
 
+          {/* Successfully picked up */}
           {listing.status === 'picked_up' && (
             <div className="rounded-xl bg-gray-100 p-3 text-center text-sm font-medium text-gray-600">
               Food successfully rescued ✓

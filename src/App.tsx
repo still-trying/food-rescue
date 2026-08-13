@@ -5,7 +5,12 @@ import ListingFeed from './components/ListingFeed'
 import PostListingForm from './components/PostListingForm'
 import type { Listing } from './components/ListingCard'
 
-type View = 'available' | 'claimed' | 'picked_up' | 'my_listings' | 'post'
+type View =
+  | 'available'
+  | 'claimed'
+  | 'picked_up'
+  | 'my_listings'
+  | 'post'
 
 function App() {
   const [view, setView] = useState<View>('available')
@@ -18,8 +23,9 @@ function App() {
   useEffect(() => {
     checkUser()
 
+    // Listen for authentication changes
     const {
-      data: { subscription },
+      data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null)
       setUserEmail(session?.user?.email ?? null)
@@ -33,8 +39,70 @@ function App() {
       setLoading(false)
     })
 
+    // Real-time listing updates
+    const listingsChannel = supabase
+      .channel('listings-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'listings',
+        },
+        (payload) => {
+          console.log('Realtime listing change:', payload)
+
+          // New listing created
+          if (payload.eventType === 'INSERT') {
+            const newListing = payload.new as Listing
+
+            setListings((current) => {
+              // Prevent duplicate listing
+              if (
+                current.some(
+                  (listing) => listing.id === newListing.id
+                )
+              ) {
+                return current
+              }
+
+              return [newListing, ...current]
+            })
+          }
+
+          // Existing listing updated
+          if (payload.eventType === 'UPDATE') {
+            const updatedListing = payload.new as Listing
+
+            setListings((current) =>
+              current.map((listing) =>
+                listing.id === updatedListing.id
+                  ? updatedListing
+                  : listing
+              )
+            )
+          }
+
+          // Listing deleted
+          if (payload.eventType === 'DELETE') {
+            const deletedListing = payload.old as Listing
+
+            setListings((current) =>
+              current.filter(
+                (listing) => listing.id !== deletedListing.id
+              )
+            )
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Listings realtime status:', status)
+      })
+
+    // Cleanup subscriptions when component unmounts
     return () => {
-      subscription.unsubscribe()
+      authSubscription.unsubscribe()
+      supabase.removeChannel(listingsChannel)
     }
   }, [])
 
@@ -46,6 +114,7 @@ function App() {
     if (session?.user) {
       setUserId(session.user.id)
       setUserEmail(session.user.email ?? null)
+
       await loadListings()
     }
 
@@ -71,18 +140,33 @@ function App() {
   const handleUpdated = (updatedListing: Listing) => {
     setListings((current) =>
       current.map((listing) =>
-        listing.id === updatedListing.id ? updatedListing : listing
+        listing.id === updatedListing.id
+          ? updatedListing
+          : listing
       )
     )
   }
 
   const handleCreated = (newListing: Listing) => {
-    setListings((current) => [newListing, ...current])
+    setListings((current) => {
+      // Prevent duplicate because Realtime may also receive INSERT
+      if (
+        current.some(
+          (listing) => listing.id === newListing.id
+        )
+      ) {
+        return current
+      }
+
+      return [newListing, ...current]
+    })
+
     setView('available')
   }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+
     setUserId(null)
     setUserEmail(null)
     setListings([])
@@ -97,33 +181,37 @@ function App() {
     if (user) {
       setUserId(user.id)
       setUserEmail(user.email ?? null)
+
       await loadListings()
     }
   }
 
   const now = new Date()
 
-const filteredListings = listings.filter((listing) => {
-  // Available listings disappear after their pickup window ends
-  if (
-    listing.status === 'available' &&
-    new Date(listing.pickup_window_end) <= now
-  ) {
-    return false
-  }
+  const filteredListings = listings.filter((listing) => {
+    // Hide expired available listings
+    if (
+      listing.status === 'available' &&
+      new Date(listing.pickup_window_end) <= now
+    ) {
+      return false
+    }
 
-  // My Listings = listings created by the logged-in user
-  if (view === 'my_listings') {
-    return listing.posted_by === userId
-  }
+    // My Listings
+    if (view === 'my_listings') {
+      return listing.posted_by === userId
+    }
 
-  return listing.status === view
-})
+    // Normal status filters
+    return listing.status === view
+  })
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Loading Food Rescue...</p>
+        <p className="text-gray-500">
+          Loading Food Rescue...
+        </p>
       </div>
     )
   }
@@ -136,19 +224,31 @@ const filteredListings = listings.filter((listing) => {
   // User IS logged in
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
+
       {/* Header */}
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-5">
-          <button onClick={() => setView('available')} className="text-left">
-            <h1 className="text-2xl font-bold">Food Rescue</h1>
+
+          <button
+            onClick={() => setView('available')}
+            className="text-left"
+          >
+            <h1 className="text-2xl font-bold">
+              Food Rescue
+            </h1>
+
             <p className="text-sm text-gray-500">
               Rescue surplus food. Reduce waste.
             </p>
           </button>
 
           <div className="flex items-center gap-3">
+
             <div className="hidden text-right sm:block">
-              <p className="text-xs text-gray-500">Logged in as</p>
+              <p className="text-xs text-gray-500">
+                Logged in as
+              </p>
+
               <p className="max-w-48 truncate text-sm font-medium">
                 {userEmail}
               </p>
@@ -167,6 +267,7 @@ const filteredListings = listings.filter((listing) => {
             >
               Logout
             </button>
+
           </div>
         </div>
       </header>
@@ -174,6 +275,7 @@ const filteredListings = listings.filter((listing) => {
       {/* Navigation */}
       <nav className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl gap-7 px-6">
+
           <button
             onClick={() => setView('available')}
             className={`border-b-2 px-1 py-4 font-medium ${
@@ -207,22 +309,23 @@ const filteredListings = listings.filter((listing) => {
             Picked Up
           </button>
 
-<button
-  onClick={() => setView('my_listings')}
-  className={`border-b-2 px-1 py-4 font-medium ${
-    view === 'my_listings'
-      ? 'border-green-600 text-green-600'
-      : 'border-transparent text-gray-500'
-  }`}
->
-  My Listings
-</button>
+          <button
+            onClick={() => setView('my_listings')}
+            className={`border-b-2 px-1 py-4 font-medium ${
+              view === 'my_listings'
+                ? 'border-green-600 text-green-600'
+                : 'border-transparent text-gray-500'
+            }`}
+          >
+            My Listings
+          </button>
 
         </div>
       </nav>
 
       {/* Main */}
       <main className="mx-auto max-w-6xl px-6 py-10">
+
         {error && (
           <div className="mb-6 rounded-xl bg-red-50 p-4 text-red-700">
             {error}
@@ -238,26 +341,28 @@ const filteredListings = listings.filter((listing) => {
         ) : (
           <>
             <div className="mb-8">
+
               <h2 className="text-3xl font-bold">
-  {view === 'available' && 'Available Food'}
-  {view === 'claimed' && 'Claimed Food'}
-  {view === 'picked_up' && 'Picked Up'}
-  {view === 'my_listings' && 'My Listings'}
-</h2>
+                {view === 'available' && 'Available Food'}
+                {view === 'claimed' && 'Claimed Food'}
+                {view === 'picked_up' && 'Picked Up'}
+                {view === 'my_listings' && 'My Listings'}
+              </h2>
 
               <p className="mt-2 text-gray-600">
-  {view === 'available' &&
-    'Find surplus food available near you.'}
+                {view === 'available' &&
+                  'Find surplus food available near you.'}
 
-  {view === 'claimed' &&
-    'Food that has already been claimed.'}
+                {view === 'claimed' &&
+                  'Food that has already been claimed.'}
 
-  {view === 'picked_up' &&
-    'Food that has successfully been rescued.'}
+                {view === 'picked_up' &&
+                  'Food that has successfully been rescued.'}
 
-  {view === 'my_listings' &&
-    'Food listings that you have posted.'}
-</p>
+                {view === 'my_listings' &&
+                  'Food listings that you have posted.'}
+              </p>
+
             </div>
 
             <ListingFeed
@@ -267,6 +372,7 @@ const filteredListings = listings.filter((listing) => {
             />
           </>
         )}
+
       </main>
     </div>
   )
