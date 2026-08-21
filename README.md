@@ -686,7 +686,7 @@ Next stage:
 - [ ] Impact tracking, community features
 - [ ] Automated expiration workflows
 
-<div align="center"> 
+<div align="center">
 
 🔗 [github.com/still-trying/food-rescue](https://github.com/still-trying/food-rescue)
 
