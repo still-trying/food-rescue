@@ -31,11 +31,13 @@
 - [Architecture](#-architecture)
 - [Listing Lifecycle](#-listing-lifecycle)
 - [Pickup Expiration](#-pickup-expiration)
+- [Search, Categories & Filtering](#-search-categories--filtering)
 - [Database Schema](#-database-schema)
 - [Atomic Claiming](#-atomic-claiming)
 - [Security](#-security)
 - [Photo Upload](#-photo-upload)
 - [My Listings](#-my-listings)
+- [Realtime Updates](#-realtime-updates)
 - [Project Structure](#-project-structure)
 - [Getting Started](#-getting-started)
 - [Supabase Setup](#-supabase-setup)
@@ -55,23 +57,22 @@
 
 Food Rescue is a full-stack app that helps restaurants, kitchens, stores, and individuals share surplus food before it goes to waste.
 
-A user posts a listing with a pickup location, time window, quantity, description, and optional photo. Other authenticated users can view it and claim it.
+A user posts a listing with a pickup location, time window, quantity, category, description, and optional photo. Other authenticated users can discover, search, filter, and claim available food.
 
 > [!NOTE]
 > **Lifecycle:** `Available → Claimed → Picked Up`
 >
 > Available listings automatically stop appearing in the active feed once their pickup window ends.
 
-The project started as a rapid hackathon MVP and is now being hardened with stronger database security, expiration handling, ownership controls, and a more reliable claiming workflow.
+The project started as a rapid hackathon MVP and is now being hardened with stronger database security, expiration handling, ownership controls, search and discovery features, and a more reliable claiming workflow.
 
 ---
 
 ## 📸 Screenshots
 
-<!-- Add real screenshots or a short GIF of the claim flow (post → claim → picked up) here before you submit or share this repo.
-For a hackathon README, this section gets more attention from judges/recruiters than any diagram below it. -->
+<!-- Add real screenshots or a short GIF of the claim flow (post → search → claim → picked up) here. -->
 
-| Available Feed | Claim Flow | My Listings |
+| Available Feed | Search & Filters | My Listings |
 |:---:|:---:|:---:|
 | _screenshot_ | _screenshot_ | _screenshot_ |
 
@@ -87,8 +88,7 @@ For a hackathon README, this section gets more attention from judges/recruiters 
 
 ### 🍱 Listings
 - Create surplus-food listings
-- Food name and description
-- Quantity information
+- Food name, description, quantity, category
 - Pickup area
 - Pickup start and end time window
 - Optional food photo upload
@@ -99,12 +99,27 @@ For a hackathon README, this section gets more attention from judges/recruiters 
 - My Listings section
 - Atomic food claiming
 - Mark claimed food as picked up
-- Pickup-window expiration handling
+- Pickup-window expiration handling (frontend + database-level)
 - Expired listings cannot be claimed
 - Stale UI is protected against expired claims
 
+### 🗃️ Food Categories
+Listings can be categorized as 🍛 Cooked Meals, 🥖 Bakery, 🛒 Groceries, 🥦 Fruits & Vegetables, 🥤 Beverages, or 🍱 Other — stored in PostgreSQL and validated with a database-level constraint. Full mapping in [Search, Categories & Filtering](#-search-categories--filtering).
+
+### 🔎 Search & Discovery
+- Search by food name, description, or location
+- Filter by category
+- Sort by pickup time or newest listing
+- Search, filters, and sorting combine together
+- Expired listings are excluded from active results
+
 ### 👤 My Listings
 Users can view the listings they personally posted — tracked independently from the global Available, Claimed, and Picked Up feeds.
+
+### ⚡ Realtime Updates
+- Listing changes are reflected across active sessions via Supabase Realtime
+- Claims and status changes appear without a manual refresh
+- Keeps the live food board synchronized between everyone viewing it
 
 ### 🛡️ Security
 - Supabase Row-Level Security
@@ -116,6 +131,7 @@ Users can view the listings they personally posted — tracked independently fro
 - Only the claimant can mark food as picked up
 - Users cannot freely modify other users' listings
 - Database-level protection against stale and unauthorized updates
+- Category values are validated at the database level
 
 ### 📸 Photos
 - Optional food image upload
@@ -128,6 +144,7 @@ Users can view the listings they personally posted — tracked independently fro
 - Supabase Authentication
 - Supabase Storage
 - Supabase Row-Level Security
+- Supabase Realtime
 - Vercel deployment
 - GitHub source control
 - Responsive React interface
@@ -144,10 +161,11 @@ Users can view the listings they personally posted — tracked independently fro
 | Build Tool | Vite | Dev server & bundler |
 | Language | TypeScript | Static typing |
 | Styling | Tailwind CSS v4 | Utility-first styling |
-| Backend | Supabase | BaaS: DB, auth, storage |
+| Backend | Supabase | BaaS: DB, auth, storage, realtime |
 | Database | PostgreSQL | Relational data store |
 | Authentication | Supabase Auth | Email/password authentication |
 | File Storage | Supabase Storage | Food photo uploads |
+| Realtime | Supabase Realtime | Live database change updates |
 | Hosting | Vercel | Production hosting |
 | Version Control | Git + GitHub | Source control |
 
@@ -161,7 +179,7 @@ Food Rescue does not require a separate Express, Node.js, or FastAPI backend —
 flowchart TD
     U(["👤 User"]) --> V["▲ Vercel<br/>Hosts the React App"]
     V --> B["🖥️ Browser<br/>React + Vite + TypeScript"]
-    B <--> S[("🗄️ Supabase<br/>PostgreSQL · Auth · Storage · RLS")]
+    B <--> S[("🗄️ Supabase<br/>PostgreSQL · Auth · Storage · RLS · Realtime")]
 
     style U fill:#f5f5f5,stroke:#999999,color:#000000
     style V fill:#111111,stroke:#333333,color:#ffffff
@@ -174,6 +192,7 @@ Supabase handles:
 - PostgreSQL database
 - Row-Level Security
 - Storage
+- Realtime database events
 - Database-level authorization
 
 ---
@@ -223,6 +242,45 @@ UI hides Claim  →  Claim query filters on time  →  Supabase RLS re-checks ti
 
 ---
 
+## 🔎 Search, Categories & Filtering
+
+A discovery layer on top of the core listing board. Users can:
+
+- Search by food title, description, or pickup location
+- Filter by food category
+- Sort by pickup time or newest listing
+- Combine search, category, and sorting in one query
+- See only currently relevant (non-expired) available listings
+
+**Supported categories**
+
+| Category | Stored value |
+|---|---|
+| 🍛 Cooked Meals | `cooked_meals` |
+| 🥖 Bakery | `bakery` |
+| 🛒 Groceries | `groceries` |
+| 🥦 Fruits & Vegetables | `fruits_vegetables` |
+| 🥤 Beverages | `beverages` |
+| 🍱 Other | `other` |
+
+The category is stored directly on the `listings` table and validated at the database level, so invalid categories can't be inserted even if the frontend allows a bad value through.
+
+```mermaid
+flowchart LR
+    A(["🔎 User searches / picks a category"]) --> B["⚛️ React query builder"]
+    B --> C[("🗄️ Supabase query<br/>title · description · location · category · sort")]
+    C --> D["📋 Filtered, sorted results"]
+    D --> E["🚫 Expired listings excluded"]
+
+    style A fill:#FFD166,stroke:#b8860b,color:#000000
+    style B fill:#61DAFB,stroke:#20232a,color:#000000
+    style C fill:#3ECF8E,stroke:#1a1a1a,color:#000000
+    style D fill:#118AB2,stroke:#0b5c73,color:#ffffff
+    style E fill:#EF476F,stroke:#a3223f,color:#ffffff
+```
+
+---
+
 ## 🗄️ Database Schema
 
 ```sql
@@ -231,6 +289,7 @@ create table public.listings (
   title text not null,
   description text,
   quantity text,
+  category text,
   photo_url text,
   location_text text not null,
   pickup_window_start timestamptz not null,
@@ -244,6 +303,24 @@ create table public.listings (
 
 create index listings_status_created_idx
   on public.listings (status, created_at desc);
+```
+
+**Category validation**
+
+```sql
+alter table public.listings
+add constraint listings_category_check
+check (
+  category is null
+  or category in (
+    'cooked_meals',
+    'bakery',
+    'groceries',
+    'fruits_vegetables',
+    'beverages',
+    'other'
+  )
+);
 ```
 
 ---
@@ -300,6 +377,7 @@ Current guarantees:
 - [x] A listing cannot be claimed twice
 - [x] Only the claimant can mark a listing as picked up
 - [x] Users cannot freely modify another user's listing
+- [x] Category values are validated by PostgreSQL
 
 **Defense in depth:**
 
@@ -342,6 +420,26 @@ flowchart LR
 ## 📋 My Listings
 
 A dedicated view filtering the existing `listings` table by `posted_by === userId` — no separate database table required. Lets contributors track food they personally posted, distinct from the global feeds.
+
+---
+
+## ⚡ Realtime Updates
+
+Food Rescue listens for changes on the `listings` table via Supabase Realtime, so state changes propagate to every open session without a manual refresh — useful when multiple people are viewing the same board at once.
+
+```mermaid
+flowchart LR
+    A(["🤝 User B claims a listing"]) --> B[("🗄️ Supabase Realtime<br/>listens on listings table")]
+    B --> C["📡 Change broadcast"]
+    C --> D["🖥️ User A's browser"]
+    D --> E["🔄 UI updates automatically<br/>no refresh needed"]
+
+    style A fill:#06D6A0,stroke:#04795a,color:#000000
+    style B fill:#3ECF8E,stroke:#1a1a1a,color:#000000
+    style C fill:#8338EC,stroke:#5b0fb3,color:#ffffff
+    style D fill:#61DAFB,stroke:#20232a,color:#000000
+    style E fill:#118AB2,stroke:#0b5c73,color:#ffffff
+```
 
 ---
 
@@ -438,7 +536,8 @@ npm run preview
 To reproduce the backend:
 
 - [ ] Create a new Supabase project
-- [ ] Run the schema from [Database Schema](#-database-schema)
+- [ ] Run the `listings` schema from [Database Schema](#-database-schema)
+- [ ] Add the `category` column and its check constraint
 - [ ] Enable Row-Level Security on the `listings` table
 - [ ] Enable email/password authentication
 - [ ] Create a Storage bucket named `listing-photos`
@@ -446,6 +545,7 @@ To reproduce the backend:
 - [ ] Add the listing `INSERT` policy
 - [ ] Add the listing `SELECT` policy
 - [ ] Add the listing `UPDATE` policy — must require `pickup_window_end > now()` on claim
+- [ ] Enable Supabase Realtime on the `listings` table if reproducing live updates
 
 ---
 
@@ -478,8 +578,15 @@ Set these in the Vercel project settings:
 - [ ] Unauthenticated users cannot access the main application
 
 **Listing Creation**
-- [ ] Post surplus food with description, location, pickup window, optional photo
+- [ ] Post surplus food with description, quantity, category, location, pickup window, optional photo
 - [ ] Listing appears under Available
+
+**Search & Filtering**
+- [ ] Search by food name, description, and location
+- [ ] Filter by category
+- [ ] Sort listings (pickup time, newest)
+- [ ] Search, filtering, and sorting work together
+- [ ] Expired available listings are excluded from results
 
 **Claiming**
 - [ ] User A creates a listing; User B claims it and it moves to Claimed
@@ -495,12 +602,18 @@ Set these in the Vercel project settings:
 - [ ] An expired or already-claimed listing cannot be claimed
 - [ ] A non-claimant cannot mark a listing as picked up
 - [ ] Users cannot freely update another user's listing
+- [ ] Invalid category values are rejected by the database
 
 **Photo Upload**
 - [ ] Uploaded image appears on the Listing Card and in the `listing-photos` bucket, with `photo_url` stored on the listing
 
 **My Listings**
 - [ ] A user's own listing appears in My Listings; another user's listings do not
+
+**Realtime**
+- [ ] Listing changes are reflected across active sessions
+- [ ] Claiming does not require a manual page refresh
+- [ ] Listing state stays synchronized with the backend
 
 ---
 
@@ -515,18 +628,18 @@ Food Rescue intentionally focuses on the core food-rescue workflow.
 **✅ Included**
 
 - [x] Authentication (signup / login / logout)
-- [x] Food listings — name, description, quantity
+- [x] Food listings — name, description, quantity, category
 - [x] Pickup location, start & end time window
 - [x] Food photos via Supabase Storage
 - [x] Available / Claimed / Picked Up states
 - [x] My Listings view
 - [x] Atomic claiming
-- [x] Pickup-window expiration handling
-- [x] Frontend stale-expiration protection
-- [x] Database-level expiration protection
+- [x] Pickup-window expiration handling (frontend + database)
 - [x] Secure `UPDATE` authorization (RLS)
-- [x] PostgreSQL persistence
-- [x] Row-Level Security
+- [x] PostgreSQL persistence + Row-Level Security
+- [x] Category validation
+- [x] Search, category filtering, and sorting
+- [x] Realtime listing updates
 - [x] Supabase Storage
 - [x] Vercel deployment
 - [x] Responsive interface
@@ -541,15 +654,14 @@ Food Rescue intentionally focuses on the core food-rescue workflow.
 - [ ] Push notifications
 - [ ] Ratings & reputation
 - [ ] Payments
-- [ ] Recommendation system
+- [ ] Recommendation / smart matching system
 - [ ] Admin dashboard
-- [ ] Real-time listing updates
 - [ ] Business verification
 - [ ] AI food classification
 - [ ] Automated expired-listing cleanup
 - [ ] User profiles
-- [ ] Food categories
-- [ ] Search & filtering
+- [ ] Impact dashboard
+- [ ] Advanced moderation
 
 </td>
 </tr>
@@ -562,19 +674,17 @@ Food Rescue intentionally focuses on the core food-rescue workflow.
 | Feature | Description |
 |---|---|
 | 📍 Location-based discovery | Show surplus food based on distance from the user |
-| 🔎 Search & filtering | By food name, category, quantity, location, pickup time |
 | 🗺️ Map integration | Display nearby food listings on a map |
-| ⚡ Real-time updates | Supabase Realtime so listings update instantly when claimed |
-| 🔔 Notifications | New food, claims, approaching/expiring pickup |
+| 🔔 Push notifications | New nearby food, claim events, and approaching/expiring pickup alerts |
 | 🏪 Business accounts | Verified accounts for restaurants, hotels, cafes, grocery stores |
 | 📊 Impact dashboard | Meals rescued, pickups, waste prevented, contributors |
 | ⭐ Community reputation | Ratings and reliability scores |
 | 🛡️ Listing moderation | Reporting and moderation tools |
-| 🧠 Smart matching | Recommend listings by distance, timing, food type |
-| 👤 User profiles | Contributor and organization info |
-| 🗂️ Food categories | Cooked meals, bakery items, groceries, etc. |
-| ⏰ Automated expiration | Scheduled backend job to transition expired records |
+| 🧠 Smart matching | Recommend listings by distance, timing, and food type |
+| 👤 User profiles | Contributor and organization information |
+| ⏰ Automated expiration | Scheduled backend job to transition or clean up expired records |
 | 📈 Analytics | Platform activity and food-waste reduction tracking |
+| 💬 Messaging | Direct communication between food posters and claimants |
 
 ---
 
@@ -639,7 +749,7 @@ Food Rescue connects surplus food with people who can use it — quickly, locall
 
 ## 🚧 Project Status
 
-Food Rescue started as a rapid hackathon MVP and has moved from a basic functional prototype toward a more secure, production-oriented application.
+Food Rescue started as a rapid hackathon MVP and has moved from a basic functional prototype toward a more secure, production-oriented application with search, discovery, and live updates.
 
 **Current core workflow**
 
@@ -673,18 +783,22 @@ flowchart LR
 
 Implemented:
 - [x] Authentication, food listings, food photos, pickup windows
+- [x] Food categories with database-level validation
+- [x] Search, category filtering, and listing sorting
 - [x] Available / Claimed / Picked Up workflow + My Listings
 - [x] Atomic claiming
 - [x] Pickup expiration handling (frontend + database-level)
 - [x] Secure `UPDATE` RLS policy, claimant-only pickup completion
+- [x] Supabase Realtime live listing updates
 - [x] Supabase Storage, PostgreSQL persistence, Vercel deployment
 
 Next stage:
-- [ ] Better location discovery, search & filtering
-- [ ] Real-time updates, notifications
+- [ ] Better location discovery, GPS / map integration
+- [ ] Push notifications
 - [ ] Business accounts, trust & safety
-- [ ] Impact tracking, community features
+- [ ] Impact tracking, user profiles
 - [ ] Automated expiration workflows
+- [ ] Community features, smart matching
 
 <div align="center">
 
@@ -692,4 +806,4 @@ Next stage:
 
 Made with 🍱 + ☕ — if this is useful, a ⭐ helps.
 
-</div> 
+</div>
