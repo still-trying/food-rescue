@@ -14,6 +14,9 @@ type View =
 
 function App() {
   const [view, setView] = useState<View>('available')
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'pickup_soonest'>('newest')
   const [listings, setListings] = useState<Listing[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -188,23 +191,82 @@ function App() {
 
   const now = new Date()
 
-  const filteredListings = listings.filter((listing) => {
-    // Hide expired available listings
-    if (
-      listing.status === 'available' &&
-      new Date(listing.pickup_window_end) <= now
-    ) {
-      return false
-    }
+  const filteredListings = listings
+    .filter((listing) => {
+      // --------------------------------------------------
+      // 1. Hide expired available listings
+      // --------------------------------------------------
+      if (
+        listing.status === 'available' &&
+        new Date(listing.pickup_window_end) <= now
+      ) {
+        return false
+      }
 
-    // My Listings
-    if (view === 'my_listings') {
-      return listing.posted_by === userId
-    }
+      // --------------------------------------------------
+      // 2. My Listings
+      // --------------------------------------------------
+      if (view === 'my_listings') {
+        if (listing.posted_by !== userId) {
+          return false
+        }
+      } else {
+        // ------------------------------------------------
+        // 3. Normal status filters
+        // ------------------------------------------------
+        if (listing.status !== view) {
+          return false
+        }
+      }
 
-    // Normal status filters
-    return listing.status === view
-  })
+      // --------------------------------------------------
+      // 4. Search filter
+      // --------------------------------------------------
+      const searchText = search.trim().toLowerCase()
+
+      if (searchText) {
+        const matchesSearch =
+          listing.title.toLowerCase().includes(searchText) ||
+          listing.description?.toLowerCase().includes(searchText) ||
+          listing.location_text.toLowerCase().includes(searchText)
+
+        if (!matchesSearch) {
+          return false
+        }
+      }
+
+      // --------------------------------------------------
+      // 5. Category filter
+      // --------------------------------------------------
+      if (
+        categoryFilter !== 'all' &&
+        listing.category !== categoryFilter
+      ) {
+        return false
+      }
+
+      // Listing passed all filters
+      return true
+    })
+
+    // ----------------------------------------------------
+    // 6. Sorting
+    // ----------------------------------------------------
+    .sort((a, b) => {
+      // Pickup ending soonest
+      if (sortBy === 'pickup_soonest') {
+        return (
+          new Date(a.pickup_window_end).getTime() -
+          new Date(b.pickup_window_end).getTime()
+        )
+      }
+
+      // Default: newest first
+      return (
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+      )
+    })
 
   if (loading) {
     return (
@@ -363,6 +425,96 @@ function App() {
                   'Food listings that you have posted.'}
               </p>
 
+            </div>
+
+            {/* Search + Filters */}
+            <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-5">
+              <div className="grid gap-4 md:grid-cols-3">
+
+                {/* Search */}
+                <div className="md:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold">
+                    Search food
+                  </label>
+
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search food, description, location..."
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Category
+                  </label>
+
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600"
+                  >
+                    <option value="all">
+                      All Categories
+                    </option>
+
+                    <option value="cooked_meals">
+                      🍛 Cooked Meals
+                    </option>
+
+                    <option value="bakery">
+                      🥖 Bakery
+                    </option>
+
+                    <option value="groceries">
+                      🛒 Groceries
+                    </option>
+
+                    <option value="fruits_vegetables">
+                      🥦 Fruits & Vegetables
+                    </option>
+
+                    <option value="beverages">
+                      🥤 Beverages
+                    </option>
+
+                    <option value="other">
+                      🍱 Other
+                    </option>
+                  </select>
+                </div>
+
+                {/* Sort */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Sort by
+                  </label>
+
+                  <select
+                    value={sortBy}
+                    onChange={(e) =>
+                      setSortBy(
+                        e.target.value as
+                          | 'newest'
+                          | 'pickup_soonest'
+                      )
+                    }
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600"
+                  >
+                    <option value="newest">
+                      Newest
+                    </option>
+
+                    <option value="pickup_soonest">
+                      Pickup ending soonest
+                    </option>
+                  </select>
+                </div>
+
+              </div>
             </div>
 
             <ListingFeed

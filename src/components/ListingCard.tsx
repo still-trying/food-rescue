@@ -5,6 +5,7 @@ export type Listing = {
   title: string
   description: string | null
   quantity: string | null
+  category: string | null
   photo_url: string | null
   location_text: string
   pickup_window_start: string
@@ -26,6 +27,32 @@ function formatDate(date: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
+}
+
+// Converts the database category value into a user-friendly label
+function formatCategory(category: string | null) {
+  switch (category) {
+    case 'cooked_meals':
+      return '🍛 Cooked Meals'
+
+    case 'bakery':
+      return '🥖 Bakery'
+
+    case 'groceries':
+      return '🛒 Groceries'
+
+    case 'fruits_vegetables':
+      return '🥦 Fruits & Vegetables'
+
+    case 'beverages':
+      return '🥤 Beverages'
+
+    case 'other':
+      return '🍱 Other'
+
+    default:
+      return null
+  }
 }
 
 export default function ListingCard({
@@ -103,6 +130,8 @@ export default function ListingCard({
     onUpdated(data as Listing)
   }
 
+  const categoryLabel = formatCategory(listing.category)
+
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       {listing.photo_url && (
@@ -125,6 +154,12 @@ export default function ListingCard({
                 {listing.quantity}
               </p>
             )}
+
+            {categoryLabel && (
+              <p className="mt-2 text-sm font-medium text-gray-500">
+                {categoryLabel}
+              </p>
+            )}
           </div>
 
           <span
@@ -143,12 +178,15 @@ export default function ListingCard({
         </div>
 
         {listing.description && (
-          <p className="mt-4 text-gray-600">{listing.description}</p>
+          <p className="mt-4 text-gray-600">
+            {listing.description}
+          </p>
         )}
 
         <div className="mt-5 space-y-2 text-sm text-gray-600">
           <p>
-            📍 <strong>Pickup area:</strong> {listing.location_text}
+            📍 <strong>Pickup area:</strong>{' '}
+            {listing.location_text}
           </p>
 
           <p>

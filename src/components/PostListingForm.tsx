@@ -15,6 +15,7 @@ export default function PostListingForm({
 }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
   const [quantity, setQuantity] = useState('')
   const [location, setLocation] = useState('')
   const [pickupStart, setPickupStart] = useState('')
@@ -25,10 +26,10 @@ export default function PostListingForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!title || !location || !pickupStart || !pickupEnd) {
-      alert('Please fill in all required fields.')
-      return
-    }
+    if (!title || !category || !location || !pickupStart || !pickupEnd) {
+  alert('Please fill in all required fields.')
+  return
+}
 
     if (new Date(pickupEnd) <= new Date(pickupStart)) {
       alert('Pickup end time must be after the start time.')
@@ -66,6 +67,7 @@ export default function PostListingForm({
       .insert({
         title,
         description: description || null,
+        category,
         quantity: quantity || null,
         photo_url: photoUrl,
         location_text: location,
@@ -113,6 +115,27 @@ export default function PostListingForm({
               required
             />
           </div>
+
+          <div>
+  <label className="mb-2 block text-sm font-semibold">
+    Food category *
+  </label>
+
+  <select
+    value={category}
+    onChange={(e) => setCategory(e.target.value)}
+    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600"
+    required
+  >
+    <option value="">Select a category</option>
+    <option value="cooked_meals">🍛 Cooked Meals</option>
+    <option value="bakery">🥖 Bakery</option>
+    <option value="groceries">🛒 Groceries</option>
+    <option value="fruits_vegetables">🥦 Fruits & Vegetables</option>
+    <option value="beverages">🥤 Beverages</option>
+    <option value="other">🍱 Other</option>
+  </select>
+</div>
 
           <div>
             <label className="mb-2 block text-sm font-semibold">
