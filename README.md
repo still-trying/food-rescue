@@ -800,7 +800,7 @@ Next stage:
 - [ ] Automated expiration workflows
 - [ ] Community features, smart matching
 
-<div align="center">
+<div align="center"> 
 
 🔗 [github.com/still-trying/food-rescue](https://github.com/still-trying/food-rescue)
 
