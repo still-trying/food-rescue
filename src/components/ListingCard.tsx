@@ -92,6 +92,53 @@ export default function ListingCard({
     listing.status === 'available' &&
     new Date(listing.pickup_window_end) <= new Date()
 
+  /*
+   * Refresh a listing from Supabase when an action
+   * returns an unexpected result.
+   *
+   * This helps recover when the local card is stale
+   * because another user changed the listing.
+   */
+  const refreshListing = async (): Promise<boolean> => {
+    try {
+      const {
+        data,
+        error: refreshError,
+      } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('id', listing.id)
+        .maybeSingle()
+
+      if (refreshError) {
+        console.error(
+          'Listing refresh error:',
+          refreshError
+        )
+        return false
+      }
+
+      if (!data) {
+        return false
+      }
+
+      onUpdated(data as Listing)
+      return true
+    } catch (err) {
+      console.error(
+        'Unexpected listing refresh error:',
+        err
+      )
+      return false
+    }
+  }
+
+  /*
+   * Claim available food.
+   *
+   * The update only succeeds when the listing is
+   * still available and its pickup window has not ended.
+   */
   const handleClaim = async () => {
     if (!currentUserId) {
       setError('Please log in first.')
@@ -114,34 +161,79 @@ export default function ListingCard({
         })
         .eq('id', listing.id)
         .eq('status', 'available')
-        .gt('pickup_window_end', new Date().toISOString())
+        .gt(
+          'pickup_window_end',
+          new Date().toISOString()
+        )
         .select()
         .maybeSingle()
 
       if (error) {
         console.error('Claim error:', error)
-        setError('Unable to claim this food. Please try again.')
+
+        // The action may have failed because the
+        // listing changed or because of another error.
+        const refreshed = await refreshListing()
+
+        setError(
+          refreshed
+            ? 'Unable to claim this food. The latest listing status has been loaded. Please try again if it is still available.'
+            : 'Unable to claim this food. Please check your connection and try again.'
+        )
+
         return
       }
 
       if (!data) {
+        /*
+         * No row was updated. Another user may have
+         * claimed the listing, or its pickup window
+         * may have expired.
+         */
+        const refreshed = await refreshListing()
+
+        if (!refreshed) {
+          setError(
+            'This food is no longer available. It may have been removed, expired, or already claimed.'
+          )
+          return
+        }
+
         setError(
-          'This food is no longer available. It may have expired or already been claimed.'
+          'This food could not be claimed. The latest listing status has been loaded.'
         )
+
         return
       }
 
       onUpdated(data as Listing)
     } catch (err) {
       console.error('Unexpected claim error:', err)
-      setError('Something went wrong. Please try again.')
+
+      // Attempt recovery even after an unexpected failure.
+      await refreshListing()
+
+      setError(
+        'Something went wrong while claiming this food. The listing has been refreshed if it is still available.'
+      )
     } finally {
       setClaiming(false)
     }
   }
 
+  /*
+   * Mark food as picked up.
+   *
+   * Only the current claimant can perform this operation.
+   */
   const handlePickedUp = async () => {
-    if (!currentUserId || listing.claimed_by !== currentUserId) {
+    if (
+      !currentUserId ||
+      listing.claimed_by !== currentUserId
+    ) {
+      setError(
+        'Only the person who claimed this food can mark it as picked up.'
+      )
       return
     }
 
@@ -166,23 +258,48 @@ export default function ListingCard({
 
       if (error) {
         console.error('Pickup error:', error)
+
+        const refreshed = await refreshListing()
+
         setError(
-          'Unable to mark this food as picked up. Please try again.'
+          refreshed
+            ? 'Unable to complete the pickup update. The latest listing status has been loaded.'
+            : 'Unable to mark this food as picked up. Please check your connection and try again.'
         )
+
         return
       }
 
       if (!data) {
+        /*
+         * The listing may have changed before this
+         * request completed.
+         */
+        const refreshed = await refreshListing()
+
+        if (!refreshed) {
+          setError(
+            'Unable to update this listing. It may have been removed or changed.'
+          )
+          return
+        }
+
         setError(
-          'Unable to mark this listing as picked up. The listing may have changed.'
+          'This listing changed before it could be updated. The latest status has been loaded.'
         )
+
         return
       }
 
       onUpdated(data as Listing)
     } catch (err) {
       console.error('Unexpected pickup error:', err)
-      setError('Something went wrong. Please try again.')
+
+      await refreshListing()
+
+      setError(
+        'Something went wrong while updating the pickup. The listing has been refreshed if it is still available.'
+      )
     } finally {
       setPickingUp(false)
     }
@@ -190,9 +307,6 @@ export default function ListingCard({
 
   /*
    * Open the exact listing coordinates in Google Maps.
-   *
-   * We use coordinates rather than only the text location
-   * so the map points to the actual geocoded location.
    */
   const handleOpenMaps = () => {
     if (
@@ -212,6 +326,36 @@ export default function ListingCard({
 
     window.open(
       mapsUrl,
+      '_blank',
+      'noopener,noreferrer'
+    )
+  }
+
+  /*
+   * Open Google Maps directions with the listing
+   * location as the destination.
+   */
+  const handleGetDirections = () => {
+    if (
+      listing.latitude === null ||
+      listing.longitude === null
+    ) {
+      setError(
+        'Directions are not available for this listing.'
+      )
+      return
+    }
+
+    const destination =
+      `${listing.latitude},${listing.longitude}`
+
+    const directionsUrl =
+      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+        destination
+      )}&travelmode=driving`
+
+    window.open(
+      directionsUrl,
       '_blank',
       'noopener,noreferrer'
     )
@@ -394,7 +538,6 @@ export default function ListingCard({
         {/* Pickup information */}
         <div className="mt-5 rounded-xl bg-gray-50 p-4">
           <div className="space-y-3">
-
             {/* Pickup area + distance */}
             <div className="flex items-start gap-3">
               <span className="mt-0.5 text-base">
@@ -445,7 +588,6 @@ export default function ListingCard({
                 </p>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -453,6 +595,7 @@ export default function ListingCard({
         {error && (
           <div
             role="alert"
+            aria-live="polite"
             className="
               mt-4
               rounded-xl
@@ -481,34 +624,175 @@ export default function ListingCard({
 
         {/* Actions */}
         <div className="mt-5 space-y-3">
+          {/* Navigation */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Pickup Navigation
+            </p>
 
-          {/* Open in Maps */}
-          {listing.latitude !== null &&
-            listing.longitude !== null && (
-              <button
-                type="button"
-                onClick={handleOpenMaps}
-                className="
-                  w-full
-                  rounded-xl
-                  border
-                  border-green-200
-                  bg-green-50
-                  px-4
-                  py-3
-                  font-semibold
-                  text-green-700
-                  transition
-                  hover:bg-green-100
-                "
-              >
-                🗺️ Open in Maps
-              </button>
-            )}
+            {/* Available listing */}
+            {listing.status === 'available' &&
+              !isExpired && (
+                <>
+                  {listing.latitude !== null &&
+                  listing.longitude !== null ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleOpenMaps}
+                        className="
+                          w-full
+                          rounded-xl
+                          border
+                          border-green-200
+                          bg-green-50
+                          px-4
+                          py-3
+                          font-semibold
+                          text-green-700
+                          transition
+                          hover:bg-green-100
+                          focus:outline-none
+                          focus:ring-2
+                          focus:ring-green-500
+                          focus:ring-offset-2
+                        "
+                      >
+                        🗺️ View Pickup Location
+                      </button>
 
-          {/* No map coordinates */}
-          {listing.latitude === null &&
-            listing.longitude === null && (
+                      <button
+                        type="button"
+                        onClick={handleGetDirections}
+                        className="
+                          w-full
+                          rounded-xl
+                          border
+                          border-blue-200
+                          bg-blue-50
+                          px-4
+                          py-3
+                          font-semibold
+                          text-blue-700
+                          transition
+                          hover:bg-blue-100
+                          focus:outline-none
+                          focus:ring-2
+                          focus:ring-blue-500
+                          focus:ring-offset-2
+                        "
+                      >
+                        🚗 Get Directions
+                      </button>
+                    </>
+                  ) : (
+                    <div
+                      className="
+                        rounded-xl
+                        border
+                        border-gray-200
+                        bg-gray-50
+                        p-3
+                        text-center
+                        text-xs
+                        text-gray-500
+                      "
+                    >
+                      📍 Map location unavailable
+                    </div>
+                  )}
+                </>
+              )}
+
+            {/* Claimed by current user */}
+            {listing.status === 'claimed' &&
+              listing.claimed_by === currentUserId && (
+                <div className="space-y-3">
+                  <div
+                    className="
+                      rounded-xl
+                      border
+                      border-blue-200
+                      bg-blue-50
+                      p-4
+                    "
+                  >
+                    <p className="text-sm font-bold text-blue-800">
+                      ✅ Food reserved for you
+                    </p>
+
+                    <p className="mt-1 text-sm leading-5 text-blue-700">
+                      Head to the pickup location during the pickup
+                      window, then mark the food as picked up.
+                    </p>
+                  </div>
+
+                  {listing.latitude !== null &&
+                  listing.longitude !== null ? (
+                    <button
+                      type="button"
+                      onClick={handleGetDirections}
+                      className="
+                        w-full
+                        rounded-xl
+                        bg-blue-600
+                        px-4
+                        py-3
+                        font-semibold
+                        text-white
+                        shadow-sm
+                        transition
+                        hover:bg-blue-700
+                        hover:shadow
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-blue-500
+                        focus:ring-offset-2
+                      "
+                    >
+                      🚗 Get Directions to Pickup
+                    </button>
+                  ) : (
+                    <div
+                      className="
+                        rounded-xl
+                        border
+                        border-gray-200
+                        bg-gray-50
+                        p-3
+                        text-center
+                        text-xs
+                        text-gray-500
+                      "
+                    >
+                      📍 Map location unavailable
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {/* Claimed by another user */}
+            {listing.status === 'claimed' &&
+              listing.claimed_by !== currentUserId && (
+                <div
+                  className="
+                    rounded-xl
+                    border
+                    border-yellow-200
+                    bg-yellow-50
+                    p-3
+                    text-center
+                    text-sm
+                    font-medium
+                    text-yellow-700
+                  "
+                >
+                  🔒 This food has already been claimed.
+                </div>
+              )}
+
+            {/* Picked up */}
+            {listing.status === 'picked_up' && (
               <div
                 className="
                   rounded-xl
@@ -517,18 +801,42 @@ export default function ListingCard({
                   bg-gray-50
                   p-3
                   text-center
-                  text-xs
-                  text-gray-500
+                  text-sm
+                  font-medium
+                  text-gray-600
                 "
               >
-                📍 Map location unavailable
+                📍 This rescue has already been completed.
               </div>
             )}
+
+            {/* Expired available listing */}
+            {listing.status === 'available' &&
+              isExpired && (
+                <div
+                  className="
+                    rounded-xl
+                    border
+                    border-red-200
+                    bg-red-50
+                    p-3
+                    text-center
+                    text-sm
+                    font-medium
+                    text-red-600
+                  "
+                >
+                  ⏰ Navigation is unavailable because the pickup
+                  window has expired.
+                </div>
+              )}
+          </div>
 
           {/* Available */}
           {listing.status === 'available' &&
             !isExpired && (
               <button
+                type="button"
                 onClick={handleClaim}
                 disabled={claiming}
                 className="
@@ -577,6 +885,7 @@ export default function ListingCard({
           {listing.status === 'claimed' &&
             listing.claimed_by === currentUserId && (
               <button
+                type="button"
                 onClick={handlePickedUp}
                 disabled={pickingUp}
                 className="
@@ -639,7 +948,6 @@ export default function ListingCard({
               🎉 Food successfully rescued
             </div>
           )}
-
         </div>
       </div>
     </article>

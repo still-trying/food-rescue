@@ -1,4 +1,9 @@
-import { useEffect, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
 import ListingFeed, {
@@ -28,6 +33,17 @@ type DistanceFilter =
 type UserLocation = {
   latitude: number
   longitude: number
+}
+
+type RealtimeStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+
+type RealtimeChange = {
+  version: number
+  deleted: boolean
+  listing?: Listing
 }
 
 /*
@@ -93,6 +109,16 @@ function App() {
   const [userId, setUserId] =
     useState<string | null>(null)
 
+  /*
+   * Refs keep async realtime callbacks aligned with the latest
+   * rendered state, even though the subscription effect runs once.
+   */
+  const listingsRef = useRef<Listing[]>([])
+  const currentUserIdRef = useRef<string | null>(null)
+  const realtimeEventVersionRef = useRef(0)
+  const realtimeChangesRef = useRef<Map<string, RealtimeChange>>(new Map())
+  const listingLoadRequestRef = useRef(0)
+
   const [userEmail, setUserEmail] =
     useState<string | null>(null)
 
@@ -113,6 +139,61 @@ function App() {
 
   const [loggingOut, setLoggingOut] =
     useState(false)
+
+  /*
+   * Realtime user-facing notification.
+   *
+   * Example:
+   * "🟡 A food listing was just claimed."
+   */
+  const [realtimeNotice, setRealtimeNotice] =
+    useState('')
+
+  const [realtimeStatus, setRealtimeStatus] =
+    useState<RealtimeStatus>('connecting')
+
+  // Synchronize callback-visible refs after React commits state changes.
+  useEffect(() => {
+    listingsRef.current = listings
+    currentUserIdRef.current = userId
+  }, [listings, userId])
+
+  /*
+   * Stores the active notification timer so
+   * multiple realtime events do not create
+   * competing timers.
+   */
+  const realtimeNoticeTimer =
+    useRef<ReturnType<typeof setTimeout> | null>(null)
+  const realtimeNoticeRef = useRef('')
+
+  /*
+   * Show a realtime notification for 4 seconds.
+   * Repeated identical messages are ignored while visible.
+   */
+  const showRealtimeNotice = useCallback((
+    message: string
+  ) => {
+    if (realtimeNoticeRef.current === message) {
+      return
+    }
+
+    realtimeNoticeRef.current = message
+    setRealtimeNotice(message)
+
+    if (realtimeNoticeTimer.current) {
+      clearTimeout(
+        realtimeNoticeTimer.current
+      )
+    }
+
+    realtimeNoticeTimer.current =
+      setTimeout(() => {
+        realtimeNoticeRef.current = ''
+        setRealtimeNotice('')
+        realtimeNoticeTimer.current = null
+      }, 4000)
+  }, [])
 
   /*
    * Request the user's current location.
@@ -211,6 +292,100 @@ function App() {
     setSortBy('newest')
   }
 
+  /*
+   * Load listings from Supabase.
+   *
+   * A revision-aware merge prevents a slow snapshot request from
+   * overwriting newer realtime events that arrived while it was running.
+   */
+  const loadListings = useCallback(async (
+    options: { clearError?: boolean } = {}
+  ) => {
+    if (options.clearError !== false) {
+      setError('')
+    }
+
+    const requestId = ++listingLoadRequestRef.current
+    const eventVersionAtStart = realtimeEventVersionRef.current
+
+    try {
+      const {
+        data,
+        error: listingsError,
+      } = await supabase
+        .from('listings')
+        .select('*')
+        .order('created_at', {
+          ascending: false,
+        })
+
+      // Ignore older overlapping load requests.
+      if (requestId !== listingLoadRequestRef.current) {
+        return
+      }
+
+      if (listingsError) {
+        console.error(
+          'Listings loading error:',
+          listingsError
+        )
+
+        setError(
+          'Unable to load food listings. Please try again.'
+        )
+
+        return
+      }
+
+      const snapshotById = new Map<string, Listing>(
+        ((data ?? []) as Listing[]).map(
+          (listing): [string, Listing] => [listing.id, listing]
+        )
+      )
+
+      // Reapply events that occurred after this database request began.
+      // This prevents an older response from undoing a newer claim/pickup
+      // or reintroducing a listing deleted while the request was in flight.
+      for (const [id, change] of realtimeChangesRef.current) {
+        if (change.version <= eventVersionAtStart) {
+          // The database snapshot began after this event, so it should
+          // include the change. Drop this now-obsolete revision marker.
+          realtimeChangesRef.current.delete(id)
+          continue
+        }
+
+        if (change.deleted) {
+          snapshotById.delete(id)
+        } else if (change.listing) {
+          snapshotById.set(id, change.listing)
+        }
+      }
+
+      const refreshedListings = Array.from(
+        snapshotById.values()
+      ).sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      )
+
+      setListings(refreshedListings)
+    } catch (err) {
+      if (requestId !== listingLoadRequestRef.current) {
+        return
+      }
+
+      console.error(
+        'Unexpected listings loading error:',
+        err
+      )
+
+      setError(
+        'Something went wrong while loading listings.'
+      )
+    }
+  }, [])
+
   useEffect(() => {
     let mounted = true
 
@@ -302,6 +477,8 @@ function App() {
           setSearch('')
           setCategoryFilter('all')
           setSortBy('newest')
+          realtimeNoticeRef.current = ''
+          setRealtimeNotice('')
         }
 
         if (mounted) {
@@ -311,10 +488,23 @@ function App() {
     )
 
     /*
-     * Realtime listing updates
+     * Realtime listing updates with automatic reconnection.
      */
-    const listingsChannel =
-      supabase
+    let listingsChannel: ReturnType<typeof supabase.channel> | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let retryAttempt = 0
+    let hasConnectedOnce = false
+
+    const connectRealtime = () => {
+      if (!mounted || listingsChannel) {
+        return
+      }
+
+      setRealtimeStatus(
+        hasConnectedOnce ? 'reconnecting' : 'connecting'
+      )
+
+      const channel = supabase
         .channel('listings-realtime')
         .on(
           'postgres_changes',
@@ -333,173 +523,279 @@ function App() {
               payload
             )
 
-            /*
-             * New listing
-             */
-            if (
-              payload.eventType ===
-              'INSERT'
-            ) {
-              const newListing =
-                payload.new as Listing
+            /* New listing */
+            if (payload.eventType === 'INSERT') {
+              const newListing = payload.new as Listing
+              const alreadyKnown = listingsRef.current.some(
+                (listing) => listing.id === newListing.id
+              )
+
+              const version = ++realtimeEventVersionRef.current
+              realtimeChangesRef.current.set(newListing.id, {
+                version,
+                deleted: false,
+                listing: newListing,
+              })
 
               setListings((current) => {
                 if (
                   current.some(
-                    (listing) =>
-                      listing.id ===
-                      newListing.id
+                    (listing) => listing.id === newListing.id
                   )
                 ) {
                   return current
                 }
 
-                return [
-                  newListing,
-                  ...current,
-                ]
+                return [newListing, ...current]
               })
-            }
 
-            /*
-             * Updated listing
-             */
-            if (
-              payload.eventType ===
-              'UPDATE'
-            ) {
-              const updatedListing =
-                payload.new as Listing
-
-              setListings((current) =>
-                current.map(
-                  (listing) =>
-                    listing.id ===
-                    updatedListing.id
-                      ? updatedListing
-                      : listing
+              // Don't notify the person who created the listing.
+              if (
+                !alreadyKnown &&
+                newListing.posted_by !== currentUserIdRef.current
+              ) {
+                showRealtimeNotice(
+                  '🟢 New surplus food has been posted.'
                 )
-              )
+              }
+
+              return
             }
 
-            /*
-             * Deleted listing
-             */
-            if (
-              payload.eventType ===
-              'DELETE'
-            ) {
-              const deletedListing =
-                payload.old as Listing
+            /* Updated listing */
+            if (payload.eventType === 'UPDATE') {
+              const oldListing = payload.old as Partial<Listing>
+              const updatedListing = payload.new as Listing
+
+              const previousLocalListing = listingsRef.current.find(
+                (listing) => listing.id === updatedListing.id
+              )
+
+              const previousRealtimeChange =
+                realtimeChangesRef.current.get(updatedListing.id)
+
+              const previousRealtimeListing =
+                previousRealtimeChange && !previousRealtimeChange.deleted
+                  ? previousRealtimeChange.listing
+                  : undefined
+
+              // Prefer whichever known value reflects the furthest state in
+              // the Available -> Claimed -> Picked Up lifecycle. This also
+              // helps with rapid events arriving before React rerenders.
+              const statusRank: Record<Listing['status'], number> = {
+                available: 0,
+                claimed: 1,
+                picked_up: 2,
+              }
+
+              const candidateStatuses = [
+                previousLocalListing?.status,
+                previousRealtimeListing?.status,
+                oldListing.status,
+              ].filter(
+                (status): status is Listing['status'] =>
+                  status !== undefined
+              )
+
+              const previousStatus = candidateStatuses.reduce(
+                (latest, candidate) =>
+                  statusRank[candidate] > statusRank[latest]
+                    ? candidate
+                    : latest,
+                candidateStatuses[0] ?? updatedListing.status
+              )
+
+              const currentUser = currentUserIdRef.current
+
+              // Notify only on meaningful state transitions and don't notify
+              // a user about their own claim or pickup action.
+              if (
+                previousStatus === 'available' &&
+                updatedListing.status === 'claimed' &&
+                updatedListing.claimed_by !== currentUser
+              ) {
+                showRealtimeNotice(
+                  '🟡 A food listing was just claimed.'
+                )
+              } else if (
+                previousStatus === 'claimed' &&
+                updatedListing.status === 'picked_up' &&
+                updatedListing.claimed_by !== currentUser
+              ) {
+                showRealtimeNotice(
+                  '🔵 A food listing was marked as picked up.'
+                )
+              }
+
+              const version = ++realtimeEventVersionRef.current
+              realtimeChangesRef.current.set(updatedListing.id, {
+                version,
+                deleted: false,
+                listing: updatedListing,
+              })
+
+              // Upsert the updated row so a missing local row is reconciled too.
+              setListings((current) => {
+                const alreadyExists = current.some(
+                  (listing) => listing.id === updatedListing.id
+                )
+
+                if (!alreadyExists) {
+                  return [updatedListing, ...current]
+                }
+
+                return current.map((listing) =>
+                  listing.id === updatedListing.id
+                    ? updatedListing
+                    : listing
+                )
+              })
+
+              return
+            }
+
+            /* Deleted listing */
+            if (payload.eventType === 'DELETE') {
+              const deletedListing = payload.old as Partial<Listing>
+              const deletedId = deletedListing.id
+
+              if (!deletedId) {
+                return
+              }
+
+              const knownListing =
+                listingsRef.current.find(
+                  (listing) => listing.id === deletedId
+                ) ??
+                realtimeChangesRef.current.get(deletedId)?.listing
+
+              const version = ++realtimeEventVersionRef.current
+              realtimeChangesRef.current.set(deletedId, {
+                version,
+                deleted: true,
+              })
 
               setListings((current) =>
                 current.filter(
-                  (listing) =>
-                    listing.id !==
-                    deletedListing.id
+                  (listing) => listing.id !== deletedId
                 )
               )
+
+              // Only notify for a listing that was visible locally and
+              // wasn't removed by its own current user.
+              const ownerId =
+                knownListing?.posted_by ?? deletedListing.posted_by
+
+              if (
+                knownListing &&
+                ownerId !== currentUserIdRef.current
+              ) {
+                showRealtimeNotice(
+                  '⚪ A food listing was removed.'
+                )
+              }
             }
           }
         )
-        .subscribe((status) => {
-          console.log(
-            'Listings realtime status:',
-            status
+
+      // Set the active channel before subscribing so that only
+      // callbacks from the current channel can affect the UI.
+      listingsChannel = channel
+
+      channel.subscribe((status) => {
+        if (!mounted || listingsChannel !== channel) {
+          return
+        }
+
+        console.log(
+          'Listings realtime status:',
+          status
+        )
+
+        if (status === 'SUBSCRIBED') {
+          const isReconnection = hasConnectedOnce
+
+          hasConnectedOnce = true
+          retryAttempt = 0
+          setRealtimeStatus('connected')
+
+          setError((current) => {
+            if (current.includes('Live updates')) {
+              return ''
+            }
+
+            return current
+          })
+
+          // Reconcile the local feed after reconnecting in case
+          // changes occurred while this client was disconnected.
+          if (isReconnection) {
+            showRealtimeNotice(
+              '🔄 Live connection restored. Refreshing listings...'
+            )
+            void loadListings({ clearError: false })
+          }
+
+          return
+        }
+
+        if (
+          status === 'CHANNEL_ERROR' ||
+          status === 'TIMED_OUT' ||
+          status === 'CLOSED'
+        ) {
+          setRealtimeStatus('reconnecting')
+          setError(
+            'Live updates were interrupted. Reconnecting automatically...'
           )
 
-          if (!mounted) {
-            return
-          }
+          // Detach this channel before removal. The identity check above
+          // prevents callbacks from the old channel scheduling more retries.
+          listingsChannel = null
+          void supabase.removeChannel(channel)
 
-          if (
-            status === 'CHANNEL_ERROR'
-          ) {
-            setError(
-              'Live updates are temporarily unavailable. Refresh the page if listings stop updating.'
+          if (reconnectTimer === null && mounted) {
+            const retryDelay = Math.min(
+              1000 * 2 ** retryAttempt,
+              30000
             )
-          }
 
-          if (
-            status === 'TIMED_OUT'
-          ) {
-            setError(
-              'Live updates timed out. Refresh the page if listings stop updating.'
-            )
-          }
+            retryAttempt += 1
 
-          if (
-            status === 'SUBSCRIBED'
-          ) {
-            setError((current) => {
-              if (
-                current.includes(
-                  'Live updates'
-                )
-              ) {
-                return ''
-              }
-
-              return current
-            })
+            reconnectTimer = setTimeout(() => {
+              reconnectTimer = null
+              connectRealtime()
+            }, retryDelay)
           }
-        })
+        }
+      })
+    }
+
+    connectRealtime()
 
     return () => {
       mounted = false
 
       authSubscription.unsubscribe()
 
-      supabase.removeChannel(
-        listingsChannel
-      )
-    }
-  }, [])
-
-  /*
-   * Load listings from Supabase.
-   */
-  const loadListings = async () => {
-    setError('')
-
-    try {
-      const {
-        data,
-        error: listingsError,
-      } = await supabase
-        .from('listings')
-        .select('*')
-        .order('created_at', {
-          ascending: false,
-        })
-
-      if (listingsError) {
-        console.error(
-          'Listings loading error:',
-          listingsError
-        )
-
-        setError(
-          'Unable to load food listings. Please try again.'
-        )
-
-        return
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
       }
 
-      setListings(
-        (data ?? []) as Listing[]
-      )
-    } catch (err) {
-      console.error(
-        'Unexpected listings loading error:',
-        err
-      )
+      if (listingsChannel !== null) {
+        const channelToRemove = listingsChannel
+        listingsChannel = null
+        void supabase.removeChannel(channelToRemove)
+      }
 
-      setError(
-        'Something went wrong while loading listings.'
-      )
+      if (realtimeNoticeTimer.current) {
+        clearTimeout(realtimeNoticeTimer.current)
+        realtimeNoticeTimer.current = null
+      }
     }
-  }
+  }, [loadListings, showRealtimeNotice])
+
 
   /*
    * Update one listing locally.
@@ -585,6 +881,8 @@ function App() {
       setCategoryFilter('all')
       setSortBy('newest')
       setDistanceFilter('all')
+      realtimeNoticeRef.current = ''
+      setRealtimeNotice('')
     } catch (err) {
       console.error(
         'Unexpected logout error:',
@@ -1012,6 +1310,82 @@ function App() {
 
       {/* Main */}
       <main className="mx-auto max-w-6xl px-6 py-10">
+
+        {/* Realtime connection status */}
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center gap-2 text-xs text-gray-500"
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              realtimeStatus === 'connected'
+                ? 'bg-green-500'
+                : realtimeStatus === 'reconnecting'
+                  ? 'animate-pulse bg-yellow-500'
+                  : 'animate-pulse bg-gray-400'
+            }`}
+          />
+
+          <span>
+            {realtimeStatus === 'connected'
+              ? 'Live updates connected'
+              : realtimeStatus === 'reconnecting'
+                ? 'Connection interrupted — reconnecting...'
+                : 'Connecting to live updates...'}
+          </span>
+        </div>
+
+        {/* Realtime notification */}
+        {realtimeNotice && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="
+              mb-6
+              rounded-xl
+              border
+              border-blue-200
+              bg-blue-50
+              px-4
+              py-3
+              text-sm
+              font-medium
+              text-blue-800
+              shadow-sm
+            "
+          >
+            <div className="flex items-center justify-between gap-4">
+
+              <p>
+                {realtimeNotice}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  realtimeNoticeRef.current = ''
+                  setRealtimeNotice('')
+                  if (realtimeNoticeTimer.current) {
+                    clearTimeout(realtimeNoticeTimer.current)
+                    realtimeNoticeTimer.current = null
+                  }
+                }}
+                className="
+                  shrink-0
+                  font-bold
+                  text-blue-500
+                  transition
+                  hover:text-blue-800
+                "
+                aria-label="Dismiss live update"
+              >
+                ×
+              </button>
+
+            </div>
+          </div>
+        )}
 
         {/* Global error */}
         {error && (
