@@ -26,6 +26,7 @@ export type Listing = {
 type PickupDetails = {
   pickup_address: string
   pickup_instructions: string | null
+  contact_phone: string | null
 }
 
 type Props = {
@@ -133,7 +134,7 @@ export default function ListingCard({
     const loadPickupDetails = async () => {
       const { data, error: detailsError } = await supabase
         .from('listing_pickup_details')
-        .select('pickup_address, pickup_instructions')
+        .select('pickup_address, pickup_instructions, contact_phone')
         .eq('listing_id', listing.id)
         .maybeSingle()
 
@@ -847,6 +848,48 @@ export default function ListingCard({
                 </div>
               )}
           </div>
+
+          {/* Private donor contact: visible only to the donor or successful claimant. */}
+          {canReadPickupDetails && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                {isClaimant ? 'Contact the donor' : 'Your contact number'}
+              </p>
+
+              {pickupDetailsLoading ? (
+                <p className="mt-2 text-sm text-emerald-700">Loading private contact details...</p>
+              ) : pickupDetails?.contact_phone ? (
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-semibold text-emerald-950">
+                    {pickupDetails.contact_phone}
+                  </p>
+                  {isClaimant && (
+                    <a
+                      href={`tel:${pickupDetails.contact_phone}`}
+                      className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
+                    >
+                      📞 Call donor
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-emerald-800">
+                  No contact number was saved for this listing.
+                </p>
+              )}
+
+              <p className="mt-2 text-xs text-emerald-700">
+                {isClaimant
+                  ? 'Use this number to coordinate your pickup. Please contact the donor respectfully.'
+                  : 'Your number is private and is shared only with the person who successfully claims this food.'}
+              </p>
+              {pickupDetailsError && (
+                <p className="mt-2 text-xs text-red-700" role="alert">
+                  {pickupDetailsError}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Available */}
           {listing.status === 'available' &&

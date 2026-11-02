@@ -134,6 +134,7 @@ export default function PostListingForm({
   const [location, setLocation] = useState('')
   const [pickupAddress, setPickupAddress] = useState('')
   const [pickupInstructions, setPickupInstructions] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
   const [pickupStart, setPickupStart] = useState('')
   const [pickupEnd, setPickupEnd] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
@@ -204,6 +205,9 @@ export default function PostListingForm({
     const trimmedLocation = location.trim()
     const trimmedPickupAddress = pickupAddress.trim()
     const trimmedPickupInstructions = pickupInstructions.trim()
+    const trimmedContactPhone = contactPhone.trim()
+    // Accept common spacing/parentheses/hyphens, then store canonical E.164.
+    const normalizedContactPhone = trimmedContactPhone.replace(/[()\s.-]/g, '')
 
     // -----------------------------
     // Required field validation
@@ -214,6 +218,7 @@ export default function PostListingForm({
       !category ||
       !trimmedLocation ||
       !trimmedPickupAddress ||
+      !normalizedContactPhone ||
       !pickupStart ||
       !pickupEnd
     ) {
@@ -291,6 +296,11 @@ export default function PostListingForm({
 
     if (trimmedPickupInstructions.length > 500) {
       setError('Pickup instructions must be 500 characters or less.')
+      return
+    }
+
+    if (!/^[+][1-9][0-9]{7,14}$/.test(normalizedContactPhone)) {
+      setError('Enter a valid phone number with country code, for example +91 98765 43210.')
       return
     }
 
@@ -424,6 +434,7 @@ export default function PostListingForm({
         p_pickup_address: trimmedPickupAddress,
         p_pickup_latitude: null,
         p_pickup_longitude: null,
+        p_contact_phone: normalizedContactPhone,
         p_pickup_instructions: trimmedPickupInstructions || null,
       })
 
@@ -733,6 +744,27 @@ export default function PostListingForm({
             />
             <p className="mt-1 text-right text-xs text-blue-700">
               {pickupInstructions.length}/500
+            </p>
+
+            <label htmlFor="donor-contact-phone" className="mb-2 mt-4 block text-sm font-semibold text-blue-900">
+              Contact phone number *
+            </label>
+            <input
+              id="donor-contact-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              placeholder="+91 98765 43210"
+              maxLength={25}
+              disabled={loading}
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+              aria-describedby="donor-contact-phone-help"
+              required
+            />
+            <p id="donor-contact-phone-help" className="mt-2 text-xs text-blue-800">
+              Include your country code. Only you and the person who successfully claims this food can see this number. Other users cannot access it.
             </p>
           </div>
 
