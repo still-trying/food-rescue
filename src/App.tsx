@@ -1041,8 +1041,8 @@ function App() {
          */
         if (
           !userLocation ||
-          listing.latitude === null ||
-          listing.longitude === null
+          listing.approx_latitude === null ||
+          listing.approx_longitude === null
         ) {
           return {
             listing,
@@ -1057,8 +1057,8 @@ function App() {
           calculateDistanceKm(
             userLocation.latitude,
             userLocation.longitude,
-            listing.latitude,
-            listing.longitude
+            listing.approx_latitude,
+            listing.approx_longitude
           )
 
         return {

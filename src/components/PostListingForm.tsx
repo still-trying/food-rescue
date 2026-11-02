@@ -132,6 +132,8 @@ export default function PostListingForm({
   const [category, setCategory] = useState('')
   const [quantity, setQuantity] = useState('')
   const [location, setLocation] = useState('')
+  const [pickupAddress, setPickupAddress] = useState('')
+  const [pickupInstructions, setPickupInstructions] = useState('')
   const [pickupStart, setPickupStart] = useState('')
   const [pickupEnd, setPickupEnd] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
@@ -200,6 +202,8 @@ export default function PostListingForm({
       description.trim()
     const trimmedQuantity = quantity.trim()
     const trimmedLocation = location.trim()
+    const trimmedPickupAddress = pickupAddress.trim()
+    const trimmedPickupInstructions = pickupInstructions.trim()
 
     // -----------------------------
     // Required field validation
@@ -209,6 +213,7 @@ export default function PostListingForm({
       !trimmedTitle ||
       !category ||
       !trimmedLocation ||
+      !trimmedPickupAddress ||
       !pickupStart ||
       !pickupEnd
     ) {
@@ -279,6 +284,16 @@ export default function PostListingForm({
       return
     }
 
+    if (trimmedPickupAddress.length < 5 || trimmedPickupAddress.length > 300) {
+      setError('Enter a complete pickup address between 5 and 300 characters.')
+      return
+    }
+
+    if (trimmedPickupInstructions.length > 500) {
+      setError('Pickup instructions must be 500 characters or less.')
+      return
+    }
+
     // -----------------------------
     // Date validation
     // -----------------------------
@@ -322,23 +337,12 @@ export default function PostListingForm({
       // Geocode pickup location
       // -----------------------------
 
-      const coordinates =
-        await geocodeLocation(
-          trimmedLocation
-        )
-
-      if (!coordinates) {
-        setError(
-          'We could not find that pickup area. Please enter a more specific location, such as "Gomti Nagar, Lucknow".'
-        )
-
+      const approximateCoordinates = await geocodeLocation(trimmedLocation)
+      if (!approximateCoordinates) {
+        setError('We could not find that pickup area. Enter a broad area such as "Gomti Nagar, Lucknow".')
         return
       }
 
-      const {
-        latitude,
-        longitude,
-      } = coordinates
 
       // -----------------------------
       // Photo upload
@@ -406,37 +410,22 @@ export default function PostListingForm({
       const {
         data,
         error: insertError,
-      } = await supabase
-        .from('listings')
-        .insert({
-          title: trimmedTitle,
-
-          description:
-            trimmedDescription || null,
-
-          category,
-
-          quantity:
-            trimmedQuantity || null,
-
-          photo_url: photoUrl,
-
-          location_text:
-            trimmedLocation,
-
-          latitude,
-          longitude,
-
-          pickup_window_start:
-            startDate.toISOString(),
-
-          pickup_window_end:
-            endDate.toISOString(),
-
-          posted_by: userId,
-        })
-        .select()
-        .single()
+      } = await supabase.rpc('create_listing_with_pickup_details', {
+        p_title: trimmedTitle,
+        p_description: trimmedDescription || null,
+        p_category: category,
+        p_quantity: trimmedQuantity || null,
+        p_photo_url: photoUrl,
+        p_location_text: trimmedLocation,
+        p_approx_latitude: approximateCoordinates.latitude,
+        p_approx_longitude: approximateCoordinates.longitude,
+        p_pickup_window_start: startDate.toISOString(),
+        p_pickup_window_end: endDate.toISOString(),
+        p_pickup_address: trimmedPickupAddress,
+        p_pickup_latitude: null,
+        p_pickup_longitude: null,
+        p_pickup_instructions: trimmedPickupInstructions || null,
+      })
 
       // -----------------------------
       // Database insert failed
@@ -478,7 +467,22 @@ export default function PostListingForm({
       // Successfully created
       // -----------------------------
 
-      onCreated(data as Listing)
+      if (!data) {
+        if (uploadedPhotoPath) {
+          const { error: cleanupError } = await supabase.storage
+            .from('listing-photos')
+            .remove([uploadedPhotoPath])
+
+          if (cleanupError) {
+            console.error('Photo cleanup error:', cleanupError)
+          }
+        }
+
+        setError('The listing could not be confirmed. Please refresh and check My Listings before trying again.')
+        return
+      }
+
+      onCreated(data as unknown as Listing)
     } catch (err) {
       console.error(
         'Unexpected listing creation error:',
@@ -694,7 +698,41 @@ export default function PostListingForm({
             </p>
 
             <p className="mt-1 text-xs text-gray-400">
-              Pickup coordinates are resolved using OpenStreetMap Nominatim.
+              Only this broad area is visible before a claim. Exact pickup details stay private.
+            </p>
+          </div>
+
+          {/* Private pickup address: visible only to the donor and claimant. */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <label className="mb-2 block text-sm font-semibold text-blue-900">
+              Exact pickup address *
+            </label>
+            <input
+              value={pickupAddress}
+              onChange={(e) => setPickupAddress(e.target.value)}
+              placeholder="House / shop / restaurant address and landmark"
+              maxLength={300}
+              disabled={loading}
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+              required
+            />
+            <p className="mt-2 text-xs text-blue-800">
+              Private: only you and the person who successfully claims this food can view this address. Google Maps receives it only when an authorized user opens directions.
+            </p>
+            <label className="mb-2 mt-4 block text-sm font-semibold text-blue-900">
+              Pickup instructions (optional)
+            </label>
+            <textarea
+              value={pickupInstructions}
+              onChange={(e) => setPickupInstructions(e.target.value)}
+              placeholder="e.g. Ask for the manager at the side entrance."
+              rows={2}
+              maxLength={500}
+              disabled={loading}
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-right text-xs text-blue-700">
+              {pickupInstructions.length}/500
             </p>
           </div>
 

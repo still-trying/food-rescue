@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export type Listing = {
@@ -10,8 +10,8 @@ export type Listing = {
   photo_url: string | null
 
   location_text: string
-  latitude: number | null
-  longitude: number | null
+  approx_latitude: number | null
+  approx_longitude: number | null
 
   pickup_window_start: string
   pickup_window_end: string
@@ -21,6 +21,11 @@ export type Listing = {
   posted_by: string
   claimed_by: string | null
   created_at: string
+}
+
+type PickupDetails = {
+  pickup_address: string
+  pickup_instructions: string | null
 }
 
 type Props = {
@@ -86,6 +91,81 @@ export default function ListingCard({
   const [claiming, setClaiming] = useState(false)
   const [pickingUp, setPickingUp] = useState(false)
   const [error, setError] = useState('')
+  const [pickupDetailsState, setPickupDetailsState] = useState<{
+    listingId: string
+    userId: string
+    details: PickupDetails | null
+    loading: boolean
+    error: string
+  } | null>(null)
+
+  const isOwner = Boolean(currentUserId && listing.posted_by === currentUserId)
+  const isClaimant = Boolean(
+    currentUserId &&
+    listing.claimed_by === currentUserId &&
+    (listing.status === 'claimed' || listing.status === 'picked_up')
+  )
+  const canReadPickupDetails = isOwner || isClaimant
+
+  // Bind loaded private details to both the listing and the authorized user.
+  // This prevents stale details from flashing after an account/listing change.
+  const pickupDetailsStateMatches = Boolean(
+    pickupDetailsState &&
+    pickupDetailsState.listingId === listing.id &&
+    pickupDetailsState.userId === currentUserId
+  )
+  const pickupDetails = canReadPickupDetails && pickupDetailsStateMatches
+    ? pickupDetailsState?.details ?? null
+    : null
+  const pickupDetailsLoading = canReadPickupDetails && (
+    !pickupDetailsStateMatches || Boolean(pickupDetailsState?.loading)
+  )
+  const pickupDetailsError = canReadPickupDetails && pickupDetailsStateMatches
+    ? pickupDetailsState?.error ?? ''
+    : ''
+
+  useEffect(() => {
+    if (!canReadPickupDetails || !currentUserId) return
+
+    let cancelled = false
+    const requestUserId = currentUserId
+
+    const loadPickupDetails = async () => {
+      const { data, error: detailsError } = await supabase
+        .from('listing_pickup_details')
+        .select('pickup_address, pickup_instructions')
+        .eq('listing_id', listing.id)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (detailsError) {
+        console.error('Private pickup details error:', detailsError)
+        setPickupDetailsState({
+          listingId: listing.id,
+          userId: requestUserId,
+          details: null,
+          loading: false,
+          error: 'Private pickup details could not be loaded. Please refresh this listing.',
+        })
+        return
+      }
+
+      setPickupDetailsState({
+        listingId: listing.id,
+        userId: requestUserId,
+        details: data as PickupDetails | null,
+        loading: false,
+        error: '',
+      })
+    }
+
+    void loadPickupDetails()
+
+    return () => {
+      cancelled = true
+    }
+  }, [listing.id, listing.posted_by, listing.claimed_by, listing.status, currentUserId, canReadPickupDetails])
 
   // Available listings expire once their pickup window ends.
   const isExpired =
@@ -122,7 +202,7 @@ export default function ListingCard({
         return false
       }
 
-      onUpdated(data as Listing)
+      onUpdated(data as unknown as Listing)
       return true
     } catch (err) {
       console.error(
@@ -145,6 +225,11 @@ export default function ListingCard({
       return
     }
 
+    if (listing.posted_by === currentUserId) {
+      setError('You cannot claim your own listing.')
+      return
+    }
+
     if (claiming) {
       return
     }
@@ -153,20 +238,10 @@ export default function ListingCard({
     setClaiming(true)
 
     try {
-      const { data, error } = await supabase
-        .from('listings')
-        .update({
-          status: 'claimed',
-          claimed_by: currentUserId,
-        })
-        .eq('id', listing.id)
-        .eq('status', 'available')
-        .gt(
-          'pickup_window_end',
-          new Date().toISOString()
-        )
-        .select()
-        .maybeSingle()
+      const { data, error } = await supabase.rpc(
+        'claim_listing',
+        { p_listing_id: listing.id }
+      )
 
       if (error) {
         console.error('Claim error:', error)
@@ -206,7 +281,7 @@ export default function ListingCard({
         return
       }
 
-      onUpdated(data as Listing)
+      onUpdated(data as unknown as Listing)
     } catch (err) {
       console.error('Unexpected claim error:', err)
 
@@ -245,16 +320,10 @@ export default function ListingCard({
     setPickingUp(true)
 
     try {
-      const { data, error } = await supabase
-        .from('listings')
-        .update({
-          status: 'picked_up',
-        })
-        .eq('id', listing.id)
-        .eq('status', 'claimed')
-        .eq('claimed_by', currentUserId)
-        .select()
-        .maybeSingle()
+      const { data, error } = await supabase.rpc(
+        'mark_listing_picked_up',
+        { p_listing_id: listing.id }
+      )
 
       if (error) {
         console.error('Pickup error:', error)
@@ -291,7 +360,7 @@ export default function ListingCard({
         return
       }
 
-      onUpdated(data as Listing)
+      onUpdated(data as unknown as Listing)
     } catch (err) {
       console.error('Unexpected pickup error:', err)
 
@@ -306,59 +375,31 @@ export default function ListingCard({
   }
 
   /*
-   * Open the exact listing coordinates in Google Maps.
+   * Open the private pickup destination. The database RLS policy
+   * exposes these details only to the donor or successful claimant.
    */
   const handleOpenMaps = () => {
-    if (
-      listing.latitude === null ||
-      listing.longitude === null
-    ) {
-      setError(
-        'Map location is not available for this listing.'
-      )
+    const privateAddress = pickupDetails?.pickup_address.trim()
+    if (!privateAddress) {
+      setError('The private pickup address is not available for this listing.')
       return
     }
 
-    const mapsUrl =
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        `${listing.latitude},${listing.longitude}`
-      )}`
-
-    window.open(
-      mapsUrl,
-      '_blank',
-      'noopener,noreferrer'
-    )
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(privateAddress)}`
+    window.open(mapsUrl, '_blank', 'noopener,noreferrer')
   }
 
-  /*
-   * Open Google Maps directions with the listing
-   * location as the destination.
-   */
   const handleGetDirections = () => {
-    if (
-      listing.latitude === null ||
-      listing.longitude === null
-    ) {
-      setError(
-        'Directions are not available for this listing.'
-      )
+    const privateAddress = pickupDetails?.pickup_address.trim()
+    if (!privateAddress) {
+      setError('The private pickup address is not available for this listing.')
       return
     }
 
-    const destination =
-      `${listing.latitude},${listing.longitude}`
-
-    const directionsUrl =
-      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-        destination
-      )}&travelmode=driving`
-
-    window.open(
-      directionsUrl,
-      '_blank',
-      'noopener,noreferrer'
-    )
+    const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      privateAddress
+    )}&travelmode=driving`
+    window.open(directionsUrl, '_blank', 'noopener,noreferrer')
   }
 
   const categoryLabel = formatCategory(listing.category)
@@ -553,6 +594,32 @@ export default function ListingCard({
                   {listing.location_text}
                 </p>
 
+                {canReadPickupDetails && (
+                  <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      Private pickup destination
+                    </p>
+                    {pickupDetailsLoading ? (
+                      <p className="mt-1 text-sm text-blue-700">Loading pickup details...</p>
+                    ) : pickupDetails ? (
+                      <>
+                        <p className="mt-1 break-words text-sm font-semibold text-blue-900">
+                          {pickupDetails.pickup_address}
+                        </p>
+                        {pickupDetails.pickup_instructions && (
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-blue-800">
+                            {pickupDetails.pickup_instructions}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm text-blue-700">
+                        {pickupDetailsError || 'Private pickup details have not been added for this older listing yet.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {distanceLabel && (
                   <p className="mt-1 text-sm font-semibold text-green-700">
                     📏 {distanceLabel}
@@ -630,79 +697,29 @@ export default function ListingCard({
               Pickup Navigation
             </p>
 
-            {/* Available listing */}
-            {listing.status === 'available' &&
-              !isExpired && (
-                <>
-                  {listing.latitude !== null &&
-                  listing.longitude !== null ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleOpenMaps}
-                        className="
-                          w-full
-                          rounded-xl
-                          border
-                          border-green-200
-                          bg-green-50
-                          px-4
-                          py-3
-                          font-semibold
-                          text-green-700
-                          transition
-                          hover:bg-green-100
-                          focus:outline-none
-                          focus:ring-2
-                          focus:ring-green-500
-                          focus:ring-offset-2
-                        "
-                      >
-                        🗺️ View Pickup Location
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleGetDirections}
-                        className="
-                          w-full
-                          rounded-xl
-                          border
-                          border-blue-200
-                          bg-blue-50
-                          px-4
-                          py-3
-                          font-semibold
-                          text-blue-700
-                          transition
-                          hover:bg-blue-100
-                          focus:outline-none
-                          focus:ring-2
-                          focus:ring-blue-500
-                          focus:ring-offset-2
-                        "
-                      >
-                        🚗 Get Directions
-                      </button>
-                    </>
-                  ) : (
-                    <div
-                      className="
-                        rounded-xl
-                        border
-                        border-gray-200
-                        bg-gray-50
-                        p-3
-                        text-center
-                        text-xs
-                        text-gray-500
-                      "
-                    >
-                      📍 Map location unavailable
-                    </div>
-                  )}
-                </>
-              )}
+            {/* Available listing: exact navigation is donor-only until claimed. */}
+            {listing.status === 'available' && !isExpired && (
+              isOwner ? (
+                pickupDetails && pickupDetails.pickup_address.trim() ? (
+                  <div className="space-y-3">
+                    <button type="button" onClick={handleOpenMaps} className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 font-semibold text-green-700 transition hover:bg-green-100">
+                      🗺️ View Pickup Location
+                    </button>
+                    <button type="button" onClick={handleGetDirections} className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
+                      🚗 Get Directions
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center text-xs text-gray-500">
+                    {pickupDetailsLoading ? 'Loading your private pickup details...' : 'Private pickup address is not available for this listing yet.'}
+                  </div>
+                )
+              ) : (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-center text-sm text-blue-800">
+                  📍 Approximate pickup area shown. The full pickup destination is shared after you claim the food.
+                </div>
+              )
+            )}
 
             {/* Claimed by current user */}
             {listing.status === 'claimed' &&
@@ -727,8 +744,7 @@ export default function ListingCard({
                     </p>
                   </div>
 
-                  {listing.latitude !== null &&
-                  listing.longitude !== null ? (
+                  {pickupDetails && pickupDetails.pickup_address.trim() ? (
                     <button
                       type="button"
                       onClick={handleGetDirections}
@@ -787,7 +803,7 @@ export default function ListingCard({
                     text-yellow-700
                   "
                 >
-                  🔒 This food has already been claimed.
+                  {isOwner ? '🔒 Your listing has been claimed by someone else.' : '🔒 This food has already been claimed.'}
                 </div>
               )}
 
@@ -835,30 +851,20 @@ export default function ListingCard({
           {/* Available */}
           {listing.status === 'available' &&
             !isExpired && (
-              <button
-                type="button"
-                onClick={handleClaim}
-                disabled={claiming}
-                className="
-                  w-full
-                  rounded-xl
-                  bg-green-600
-                  px-4
-                  py-3
-                  font-semibold
-                  text-white
-                  shadow-sm
-                  transition
-                  hover:bg-green-700
-                  hover:shadow
-                  disabled:cursor-not-allowed
-                  disabled:opacity-60
-                "
-              >
-                {claiming
-                  ? 'Claiming...'
-                  : 'Claim Food'}
-              </button>
+              isOwner ? (
+                <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm font-semibold text-gray-600">
+                  This is your listing.
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleClaim}
+                  disabled={claiming}
+                  className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {claiming ? 'Claiming...' : 'Claim Food'}
+                </button>
+              )
             )}
 
           {/* Expired */}
@@ -926,7 +932,7 @@ export default function ListingCard({
                   text-yellow-700
                 "
               >
-                🔒 This food has already been claimed.
+                {isOwner ? '🔒 Your listing has been claimed by someone else.' : '🔒 This food has already been claimed.'}
               </div>
             )}
 
