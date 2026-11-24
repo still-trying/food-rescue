@@ -6,9 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '.tmp-test', 'supabase/functions']),
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -17,6 +17,13 @@ export default defineConfig([
     ],
     languageOptions: {
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs', 'tests/**/*.ts'],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])

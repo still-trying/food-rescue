@@ -1,6 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FOOD_CATEGORIES,
+  formatCategoryLabel,
+  isValidCategory,
+} from '../constants/categories'
 import { supabase } from '../lib/supabase'
-import type { Listing } from './ListingCard'
+import type { Listing } from '../types/listing'
+import { toLocalDateTimeInputValue } from '../utils/date'
+import { geocodeLocation } from '../utils/geocoding'
+import {
+  detectImageMimeFromBytes,
+  MAX_PHOTO_SIZE_BYTES,
+  prepareFoodPhotoForUpload,
+} from '../utils/imageProcessor'
+import { isValidE164Phone, normalizePhoneE164 } from '../utils/phone'
+import {
+  detectPublicPiiLeak,
+  suggestCategoryFromText,
+} from '../utils/smartRescue'
 
 type Props = {
   userId: string
@@ -8,118 +25,38 @@ type Props = {
   onCancel: () => void
 }
 
-const MAX_PHOTO_SIZE = 5 * 1024 * 1024 // 5 MB
-
-const ALLOWED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]
-
-const ALLOWED_CATEGORIES = [
-  'cooked_meals',
-  'bakery',
-  'groceries',
-  'fruits_vegetables',
-  'beverages',
-  'other',
-] as const
-
-type GeocodingResult = {
-  lat: string
-  lon: string
-  display_name: string
+type AiPhotoAutofillResponse = {
+  isFood?: boolean
+  title?: string
+  category?: string
+  quantity?: string
+  description?: string
+  safetyNotes?: string
 }
 
-async function geocodeLocation(
-  location: string
-): Promise<{
-  latitude: number
-  longitude: number
-} | null> {
-  const normalizedLocation = location
-    .trim()
-    .toLowerCase()
+const START_GRACE_MS = 5 * 60 * 1000
 
-  const cacheKey =
-    `food-rescue-geocode:${normalizedLocation}`
-
-  // Reuse previously resolved locations.
-  const cachedCoordinates =
-    localStorage.getItem(cacheKey)
-
-  if (cachedCoordinates) {
-    try {
-      const parsed = JSON.parse(
-        cachedCoordinates
-      )
-
-      if (
-        typeof parsed.latitude === 'number' &&
-        typeof parsed.longitude === 'number' &&
-        Number.isFinite(parsed.latitude) &&
-        Number.isFinite(parsed.longitude)
-      ) {
-        return parsed
-      }
-    } catch {
-      localStorage.removeItem(cacheKey)
-    }
+function getDefaultPickupWindow(): { start: string; end: string } {
+  const now = new Date()
+  const start = new Date(now.getTime() + 5 * 60 * 1000)
+  const end = new Date(start.getTime() + 3 * 60 * 60 * 1000)
+  return {
+    start: toLocalDateTimeInputValue(start),
+    end: toLocalDateTimeInputValue(end),
   }
+}
 
-  const params = new URLSearchParams({
-    q: `${location.trim()}, India`,
-    format: 'jsonv2',
-    limit: '1',
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const base64 = result.split(',')[1] ?? ''
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('Failed to encode photo.'))
+    reader.readAsDataURL(blob)
   })
-
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-    {
-      headers: {
-        Accept: 'application/json',
-      },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(
-      `Geocoding request failed with status ${response.status}`
-    )
-  }
-
-  const results =
-    (await response.json()) as GeocodingResult[]
-
-  if (results.length === 0) {
-    return null
-  }
-
-  const latitude = Number(results[0].lat)
-  const longitude = Number(results[0].lon)
-
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude) ||
-    latitude < -90 ||
-    latitude > 90 ||
-    longitude < -180 ||
-    longitude > 180
-  ) {
-    return null
-  }
-
-  const coordinates = {
-    latitude,
-    longitude,
-  }
-
-  localStorage.setItem(
-    cacheKey,
-    JSON.stringify(coordinates)
-  )
-
-  return coordinates
 }
 
 export default function PostListingForm({
@@ -127,6 +64,7 @@ export default function PostListingForm({
   onCreated,
   onCancel,
 }: Props) {
+  const [defaultWindow] = useState(getDefaultPickupWindow)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
@@ -135,63 +73,165 @@ export default function PostListingForm({
   const [pickupAddress, setPickupAddress] = useState('')
   const [pickupInstructions, setPickupInstructions] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  const [pickupStart, setPickupStart] = useState('')
-  const [pickupEnd, setPickupEnd] = useState('')
+  const [pickupStart, setPickupStart] = useState(defaultWindow.start)
+  const [pickupEnd, setPickupEnd] = useState(defaultWindow.end)
   const [photo, setPhoto] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
 
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiNotice, setAiNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
 
-  const handlePhotoChange = (
+  const revokePreviewUrl = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      revokePreviewUrl()
+    }
+  }, [])
+
+  const clearPhotoSelection = () => {
+    revokePreviewUrl()
+    setPhotoPreviewUrl(null)
+    setPhoto(null)
+    setAiNotice('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const cleanupUploadedPhoto = async (path: string | null) => {
+    if (!path) {
+      return
+    }
+    const { error: cleanupError } = await supabase.storage
+      .from('listing-photos')
+      .remove([path])
+
+    if (cleanupError && import.meta.env.DEV) {
+      console.error('Photo cleanup error:', cleanupError)
+    }
+  }
+
+  const handlePhotoChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     setError('')
-
-    const selectedFile =
-      e.target.files?.[0] ?? null
+    setAiNotice('')
+    const selectedFile = e.target.files?.[0] ?? null
 
     if (!selectedFile) {
-      setPhoto(null)
+      clearPhotoSelection()
       return
     }
 
-    // Validate file type
-    if (
-      !ALLOWED_IMAGE_TYPES.includes(
-        selectedFile.type
-      )
-    ) {
-      setError(
-        'Please select a JPG, PNG, or WebP image.'
-      )
-
-      e.target.value = ''
-      setPhoto(null)
-
+    if (selectedFile.size > MAX_PHOTO_SIZE_BYTES) {
+      setError('Image size must be 5 MB or smaller.')
+      clearPhotoSelection()
       return
     }
 
-    // Validate file size
-    if (selectedFile.size > MAX_PHOTO_SIZE) {
-      setError(
-        'Image size must be 5 MB or smaller.'
-      )
-
-      e.target.value = ''
-      setPhoto(null)
-
+    const detectedMime = await detectImageMimeFromBytes(selectedFile)
+    if (!detectedMime) {
+      setError('Please select a valid JPG, PNG, or WebP image.')
+      clearPhotoSelection()
       return
     }
 
+    revokePreviewUrl()
+    const nextUrl = URL.createObjectURL(selectedFile)
+    previewUrlRef.current = nextUrl
+    setPhotoPreviewUrl(nextUrl)
     setPhoto(selectedFile)
   }
 
-  const handleSubmit = async (
-    e: React.FormEvent
-  ) => {
+  const handleAiAutofill = async () => {
+    if (!photo || aiLoading || loading) {
+      return
+    }
+
+    setError('')
+    setAiNotice('')
+    setAiLoading(true)
+
+    try {
+      const prepared = await prepareFoodPhotoForUpload(photo)
+      const imageBase64 = await blobToBase64(prepared.blob)
+
+      const { data, error: fnError } =
+        await supabase.functions.invoke<AiPhotoAutofillResponse>(
+          'analyze-food-photo',
+          {
+            body: {
+              imageBase64,
+              mimeType: prepared.contentType,
+            },
+          }
+        )
+
+      if (fnError || !data) {
+        setAiNotice(
+          'AI autofill is unavailable right now (deploy the `analyze-food-photo` Edge Function with GEMINI_API_KEY to enable it). You can fill in the details manually.'
+        )
+        return
+      }
+
+      if (data.isFood === false) {
+        setError(
+          'The selected image does not appear to show food. Please upload a clear food photo.'
+        )
+        return
+      }
+
+      if (data.title && !title.trim()) {
+        setTitle(data.title.slice(0, 100))
+      }
+      if (data.category && isValidCategory(data.category) && !category) {
+        setCategory(data.category)
+      }
+      if (data.quantity && !quantity.trim()) {
+        setQuantity(data.quantity.slice(0, 100))
+      }
+      if (data.description && !description.trim()) {
+        setDescription(data.description.slice(0, 1000))
+      }
+
+      setAiNotice(
+        data.safetyNotes
+          ? `✨ Suggested details filled. Note: ${data.safetyNotes}`
+          : '✨ Suggested details filled from photo. Please review before posting.'
+      )
+    } catch {
+      setAiNotice(
+        'Unable to analyze the photo right now. You can continue filling in the form manually.'
+      )
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const suggestedCategory = useMemo(() => {
+    if (category) return null
+    return suggestCategoryFromText(`${title} ${description}`)
+  }, [category, title, description])
+
+  const publicPiiWarnings = useMemo(() => {
+    const locationWarnings = detectPublicPiiLeak(location)
+    const descriptionWarnings = detectPublicPiiLeak(description)
+    return Array.from(new Set([...locationWarnings, ...descriptionWarnings]))
+  }, [location, description])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Prevent duplicate submissions
     if (loading) {
       return
     }
@@ -199,19 +239,12 @@ export default function PostListingForm({
     setError('')
 
     const trimmedTitle = title.trim()
-    const trimmedDescription =
-      description.trim()
+    const trimmedDescription = description.trim()
     const trimmedQuantity = quantity.trim()
     const trimmedLocation = location.trim()
     const trimmedPickupAddress = pickupAddress.trim()
     const trimmedPickupInstructions = pickupInstructions.trim()
-    const trimmedContactPhone = contactPhone.trim()
-    // Accept common spacing/parentheses/hyphens, then store canonical E.164.
-    const normalizedContactPhone = trimmedContactPhone.replace(/[()\s.-]/g, '')
-
-    // -----------------------------
-    // Required field validation
-    // -----------------------------
+    const normalizedContactPhone = normalizePhoneE164(contactPhone)
 
     if (
       !trimmedTitle ||
@@ -222,75 +255,49 @@ export default function PostListingForm({
       !pickupStart ||
       !pickupEnd
     ) {
-      setError(
-        'Please fill in all required fields.'
-      )
+      setError('Please fill in all required fields.')
       return
     }
 
-    // -----------------------------
-    // Category validation
-    // -----------------------------
-
-    if (
-      !ALLOWED_CATEGORIES.includes(
-        category as (typeof ALLOWED_CATEGORIES)[number]
-      )
-    ) {
-      setError(
-        'Please select a valid food category.'
-      )
+    if (!isValidCategory(category)) {
+      setError('Please select a valid food category.')
       return
     }
-
-    // -----------------------------
-    // Text length validation
-    // -----------------------------
 
     if (trimmedTitle.length < 2) {
-      setError(
-        'Food name must be at least 2 characters.'
-      )
+      setError('Food name must be at least 2 characters.')
       return
     }
 
     if (trimmedTitle.length > 100) {
-      setError(
-        'Food name must be 100 characters or less.'
-      )
+      setError('Food name must be 100 characters or less.')
       return
     }
 
     if (trimmedDescription.length > 1000) {
-      setError(
-        'Description must be 1000 characters or less.'
-      )
+      setError('Description must be 1000 characters or less.')
       return
     }
 
     if (trimmedQuantity.length > 100) {
-      setError(
-        'Quantity must be 100 characters or less.'
-      )
+      setError('Quantity must be 100 characters or less.')
       return
     }
 
     if (trimmedLocation.length < 2) {
-      setError(
-        'Please enter a valid pickup area.'
-      )
+      setError('Please enter a valid pickup area.')
       return
     }
 
     if (trimmedLocation.length > 200) {
-      setError(
-        'Pickup area must be 200 characters or less.'
-      )
+      setError('Pickup area must be 200 characters or less.')
       return
     }
 
     if (trimmedPickupAddress.length < 5 || trimmedPickupAddress.length > 300) {
-      setError('Enter a complete pickup address between 5 and 300 characters.')
+      setError(
+        'Enter a complete pickup address between 5 and 300 characters.'
+      )
       return
     }
 
@@ -299,241 +306,134 @@ export default function PostListingForm({
       return
     }
 
-    if (!/^[+][1-9][0-9]{7,14}$/.test(normalizedContactPhone)) {
-      setError('Enter a valid phone number with country code, for example +91 98765 43210.')
+    if (!isValidE164Phone(normalizedContactPhone)) {
+      setError(
+        'Enter a valid phone number with country code, for example +91 98765 43210.'
+      )
       return
     }
-
-    // -----------------------------
-    // Date validation
-    // -----------------------------
 
     const startDate = new Date(pickupStart)
     const endDate = new Date(pickupEnd)
     const now = new Date()
 
-    if (
-      Number.isNaN(startDate.getTime()) ||
-      Number.isNaN(endDate.getTime())
-    ) {
-      setError(
-        'Please enter valid pickup dates and times.'
-      )
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      setError('Please enter valid pickup dates and times.')
       return
     }
 
-    // Pickup cannot start in the past
-    if (startDate <= now) {
-      setError(
-        'Pickup start time must be in the future.'
-      )
+    if (startDate.getTime() < now.getTime() - START_GRACE_MS) {
+      setError('Pickup start time cannot be in the past.')
       return
     }
 
-    // Pickup end must be after pickup start
-    if (endDate <= startDate) {
-      setError(
-        'Pickup end time must be after the start time.'
-      )
+    if (endDate <= startDate || endDate <= now) {
+      setError('Pickup end time must be in the future and after the start time.')
       return
     }
 
     setLoading(true)
-
     let uploadedPhotoPath: string | null = null
 
     try {
-      // -----------------------------
-      // Geocode pickup location
-      // -----------------------------
-
       const approximateCoordinates = await geocodeLocation(trimmedLocation)
       if (!approximateCoordinates) {
-        setError('We could not find that pickup area. Enter a broad area such as "Gomti Nagar, Lucknow".')
+        setError(
+          'We could not find that pickup area. Enter a broad area such as "Gomti Nagar, Lucknow".'
+        )
         return
       }
-
-
-      // -----------------------------
-      // Photo upload
-      // -----------------------------
 
       let photoUrl: string | null = null
 
       if (photo) {
-        const fileExtension =
-          photo.name
-            .split('.')
-            .pop()
-            ?.toLowerCase()
+        const preparedPhoto = await prepareFoodPhotoForUpload(photo)
+        const fileName = `${userId}/${crypto.randomUUID()}.${preparedPhoto.extension}`
 
-        if (!fileExtension) {
-          setError(
-            'Unable to determine the image file type.'
-          )
-          return
-        }
-
-        const fileName =
-          `${userId}/${crypto.randomUUID()}.${fileExtension}`
-
-        const {
-          error: uploadError,
-        } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('listing-photos')
-          .upload(
-            fileName,
-            photo
-          )
+          .upload(fileName, preparedPhoto.blob, {
+            contentType: preparedPhoto.contentType,
+            upsert: false,
+          })
 
         if (uploadError) {
-          console.error(
-            'Photo upload error:',
-            uploadError
-          )
-
-          setError(
-            'Photo upload failed. Please try again.'
-          )
-
+          if (import.meta.env.DEV) {
+            console.error('Photo upload error:', uploadError)
+          }
+          setError('Photo upload failed. Please try again.')
           return
         }
 
         uploadedPhotoPath = fileName
 
-        const {
-          data: publicUrlData,
-        } = supabase.storage
+        const { data: publicUrlData } = supabase.storage
           .from('listing-photos')
-          .getPublicUrl(
-            fileName
-          )
+          .getPublicUrl(fileName)
 
-        photoUrl =
-          publicUrlData.publicUrl
+        photoUrl = publicUrlData.publicUrl
       }
 
-      // -----------------------------
-      // Create listing
-      // -----------------------------
-
-      const {
-        data,
-        error: insertError,
-      } = await supabase.rpc('create_listing_with_pickup_details', {
-        p_title: trimmedTitle,
-        p_description: trimmedDescription || null,
-        p_category: category,
-        p_quantity: trimmedQuantity || null,
-        p_photo_url: photoUrl,
-        p_location_text: trimmedLocation,
-        p_approx_latitude: approximateCoordinates.latitude,
-        p_approx_longitude: approximateCoordinates.longitude,
-        p_pickup_window_start: startDate.toISOString(),
-        p_pickup_window_end: endDate.toISOString(),
-        p_pickup_address: trimmedPickupAddress,
-        p_pickup_latitude: null,
-        p_pickup_longitude: null,
-        p_contact_phone: normalizedContactPhone,
-        p_pickup_instructions: trimmedPickupInstructions || null,
-      })
-
-      // -----------------------------
-      // Database insert failed
-      // -----------------------------
-
-      if (insertError) {
-        console.error(
-          'Listing creation error:',
-          insertError
-        )
-
-        // Clean up uploaded photo if the
-        // listing itself could not be created.
-        if (uploadedPhotoPath) {
-          const {
-            error: cleanupError,
-          } = await supabase.storage
-            .from('listing-photos')
-            .remove([
-              uploadedPhotoPath,
-            ])
-
-          if (cleanupError) {
-            console.error(
-              'Photo cleanup error:',
-              cleanupError
-            )
-          }
+      const { data, error: insertError } = await supabase.rpc(
+        'create_listing_with_pickup_details',
+        {
+          p_title: trimmedTitle,
+          p_description: trimmedDescription || null,
+          p_category: category,
+          p_quantity: trimmedQuantity || null,
+          p_photo_url: photoUrl,
+          p_location_text: trimmedLocation,
+          p_approx_latitude: approximateCoordinates.latitude,
+          p_approx_longitude: approximateCoordinates.longitude,
+          p_pickup_window_start: startDate.toISOString(),
+          p_pickup_window_end: endDate.toISOString(),
+          p_pickup_address: trimmedPickupAddress,
+          p_pickup_latitude: null,
+          p_pickup_longitude: null,
+          p_contact_phone: normalizedContactPhone,
+          p_pickup_instructions: trimmedPickupInstructions || null,
         }
-
-        setError(
-          'Unable to create the food listing. Please try again.'
-        )
-
-        return
-      }
-
-      // -----------------------------
-      // Successfully created
-      // -----------------------------
-
-      if (!data) {
-        if (uploadedPhotoPath) {
-          const { error: cleanupError } = await supabase.storage
-            .from('listing-photos')
-            .remove([uploadedPhotoPath])
-
-          if (cleanupError) {
-            console.error('Photo cleanup error:', cleanupError)
-          }
-        }
-
-        setError('The listing could not be confirmed. Please refresh and check My Listings before trying again.')
-        return
-      }
-
-      onCreated(data as unknown as Listing)
-    } catch (err) {
-      console.error(
-        'Unexpected listing creation error:',
-        err
       )
 
-      // Clean up uploaded image if
-      // something failed after upload.
-      if (uploadedPhotoPath) {
-        const {
-          error: cleanupError,
-        } = await supabase.storage
-          .from('listing-photos')
-          .remove([
-            uploadedPhotoPath,
-          ])
-
-        if (cleanupError) {
-          console.error(
-            'Photo cleanup error:',
-            cleanupError
-          )
+      if (insertError) {
+        if (import.meta.env.DEV) {
+          console.error('Listing creation error:', insertError)
         }
+        await cleanupUploadedPhoto(uploadedPhotoPath)
+        setError('Unable to create the food listing. Please try again.')
+        return
       }
 
+      if (!data) {
+        await cleanupUploadedPhoto(uploadedPhotoPath)
+        setError(
+          'The listing could not be confirmed. Please refresh and check My Listings before trying again.'
+        )
+        return
+      }
+
+      onCreated(data)
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error('Unexpected listing creation error:', err)
+      }
+      await cleanupUploadedPhoto(uploadedPhotoPath)
       setError(
-        'Something went wrong while posting the food. Please try again.'
+        err instanceof Error && err.message.includes('image')
+          ? err.message
+          : 'Something went wrong while posting the food. Please try again.'
       )
     } finally {
       setLoading(false)
     }
   }
 
+  const minDateTimeLocal = toLocalDateTimeInputValue(new Date())
+
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900">
-          Post Surplus Food
-        </h2>
-
+        <h2 className="text-3xl font-bold text-gray-900">Post Surplus Food</h2>
         <p className="mt-2 text-gray-500">
           Help someone nearby rescue food instead of wasting it.
         </p>
@@ -541,8 +441,6 @@ export default function PostListingForm({
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-5">
-
-          {/* Error message */}
           {error && (
             <div
               role="alert"
@@ -553,9 +451,7 @@ export default function PostListingForm({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setError('')
-                  }
+                  onClick={() => setError('')}
                   className="font-bold text-red-500 hover:text-red-700"
                   aria-label="Dismiss error"
                 >
@@ -565,17 +461,34 @@ export default function PostListingForm({
             </div>
           )}
 
-          {/* Food name */}
+          {publicPiiWarnings.length > 0 && (
+            <div
+              role="status"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+            >
+              <p className="font-semibold">
+                🛡️ Privacy check: Public fields may contain{' '}
+                {publicPiiWarnings.join(', ')}.
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                Keep exact addresses and phone numbers inside the private blue
+                section below so only the successful claimant can view them.
+              </p>
+            </div>
+          )}
+
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-title"
+              className="mb-2 block text-sm font-semibold"
+            >
               Food name *
             </label>
 
             <input
+              id="listing-title"
               value={title}
-              onChange={(e) =>
-                setTitle(e.target.value)
-              }
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Vegetable Biryani"
               maxLength={100}
               disabled={loading}
@@ -588,67 +501,57 @@ export default function PostListingForm({
             </p>
           </div>
 
-          {/* Category */}
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-category"
+              className="mb-2 block text-sm font-semibold"
+            >
               Food category *
             </label>
 
             <select
+              id="listing-category"
               value={category}
-              onChange={(e) =>
-                setCategory(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setCategory(e.target.value)}
               disabled={loading}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
               required
             >
-              <option value="">
-                Select a category
-              </option>
-
-              <option value="cooked_meals">
-                🍛 Cooked Meals
-              </option>
-
-              <option value="bakery">
-                🥖 Bakery
-              </option>
-
-              <option value="groceries">
-                🛒 Groceries
-              </option>
-
-              <option value="fruits_vegetables">
-                🥦 Fruits & Vegetables
-              </option>
-
-              <option value="beverages">
-                🥤 Beverages
-              </option>
-
-              <option value="other">
-                🍱 Other
-              </option>
+              <option value="">Select a category</option>
+              {FOOD_CATEGORIES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
             </select>
+
+            {suggestedCategory && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                <span>Suggested:</span>
+                <button
+                  type="button"
+                  onClick={() => setCategory(suggestedCategory)}
+                  className="rounded-full border border-green-200 bg-green-50 px-3 py-1 font-semibold text-green-700 hover:bg-green-100"
+                >
+                  Apply {formatCategoryLabel(suggestedCategory)}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Description */}
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-description"
+              className="mb-2 block text-sm font-semibold"
+            >
               Description
             </label>
 
             <textarea
+              id="listing-description"
               value={description}
-              onChange={(e) =>
-                setDescription(
-                  e.target.value
-                )
-              }
-              placeholder="Describe the food..."
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the food, dietary info, or allergens..."
               rows={3}
               maxLength={1000}
               disabled={loading}
@@ -660,19 +563,18 @@ export default function PostListingForm({
             </p>
           </div>
 
-          {/* Quantity */}
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-quantity"
+              className="mb-2 block text-sm font-semibold"
+            >
               Quantity
             </label>
 
             <input
+              id="listing-quantity"
               value={quantity}
-              onChange={(e) =>
-                setQuantity(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setQuantity(e.target.value)}
               placeholder="e.g. Serves 8-10"
               maxLength={100}
               disabled={loading}
@@ -684,22 +586,22 @@ export default function PostListingForm({
             </p>
           </div>
 
-          {/* Pickup area */}
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-area"
+              className="mb-2 block text-sm font-semibold"
+            >
               Pickup area *
             </label>
 
             <input
+              id="listing-area"
               value={location}
-              onChange={(e) =>
-                setLocation(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. Gomti Nagar, Lucknow"
               maxLength={200}
               disabled={loading}
+              aria-describedby="listing-area-help"
               className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
               required
             />
@@ -708,32 +610,47 @@ export default function PostListingForm({
               {location.length}/200
             </p>
 
-            <p className="mt-1 text-xs text-gray-400">
-              Only this broad area is visible before a claim. Exact pickup details stay private.
+            <p id="listing-area-help" className="mt-1 text-xs text-gray-400">
+              Only this broad area is visible before a claim. Exact pickup
+              details stay private.
             </p>
           </div>
 
-          {/* Private pickup address: visible only to the donor and claimant. */}
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-            <label className="mb-2 block text-sm font-semibold text-blue-900">
+            <label
+              htmlFor="listing-pickup-address"
+              className="mb-2 block text-sm font-semibold text-blue-900"
+            >
               Exact pickup address *
             </label>
             <input
+              id="listing-pickup-address"
               value={pickupAddress}
               onChange={(e) => setPickupAddress(e.target.value)}
               placeholder="House / shop / restaurant address and landmark"
               maxLength={300}
               disabled={loading}
+              aria-describedby="listing-pickup-address-help"
               className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
               required
             />
-            <p className="mt-2 text-xs text-blue-800">
-              Private: only you and the person who successfully claims this food can view this address. Google Maps receives it only when an authorized user opens directions.
+            <p
+              id="listing-pickup-address-help"
+              className="mt-2 text-xs text-blue-800"
+            >
+              Private: only you and the person who successfully claims this food
+              can view this address. Google Maps receives it only when an
+              authorized user opens directions.
             </p>
-            <label className="mb-2 mt-4 block text-sm font-semibold text-blue-900">
+
+            <label
+              htmlFor="listing-pickup-instructions"
+              className="mb-2 mt-4 block text-sm font-semibold text-blue-900"
+            >
               Pickup instructions (optional)
             </label>
             <textarea
+              id="listing-pickup-instructions"
               value={pickupInstructions}
               onChange={(e) => setPickupInstructions(e.target.value)}
               placeholder="e.g. Ask for the manager at the side entrance."
@@ -746,7 +663,10 @@ export default function PostListingForm({
               {pickupInstructions.length}/500
             </p>
 
-            <label htmlFor="donor-contact-phone" className="mb-2 mt-4 block text-sm font-semibold text-blue-900">
+            <label
+              htmlFor="donor-contact-phone"
+              className="mb-2 mt-4 block text-sm font-semibold text-blue-900"
+            >
               Contact phone number *
             </label>
             <input
@@ -763,51 +683,99 @@ export default function PostListingForm({
               aria-describedby="donor-contact-phone-help"
               required
             />
-            <p id="donor-contact-phone-help" className="mt-2 text-xs text-blue-800">
-              Include your country code. Only you and the person who successfully claims this food can see this number. Other users cannot access it.
+            <p
+              id="donor-contact-phone-help"
+              className="mt-2 text-xs text-blue-800"
+            >
+              Include your country code. Only you and the person who
+              successfully claims this food can see this number. Other users
+              cannot access it.
             </p>
           </div>
 
-          {/* Photo upload */}
           <div>
-            <label className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="listing-photo"
+              className="mb-2 block text-sm font-semibold"
+            >
               Food photo
             </label>
 
             <input
+              id="listing-photo"
+              ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              onChange={handlePhotoChange}
+              onChange={(e) => void handlePhotoChange(e)}
               disabled={loading}
               className="w-full rounded-xl border border-gray-300 px-4 py-3 disabled:bg-gray-100"
             />
 
             <p className="mt-1 text-xs text-gray-500">
-              JPG, PNG or WebP · Maximum 5 MB
+              JPG, PNG or WebP · Maximum 5 MB (compressed &amp; EXIF metadata
+              stripped automatically)
             </p>
 
-            {photo && (
-              <p className="mt-2 text-sm text-green-700">
-                ✓ Selected: {photo.name}
-              </p>
+            {photo && photoPreviewUrl && (
+              <div className="mt-3 space-y-2 rounded-xl border border-green-200 bg-green-50 p-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <img
+                    src={photoPreviewUrl}
+                    alt="Selected food preview"
+                    className="h-16 w-16 rounded-lg object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-green-800">
+                      ✓ {photo.name}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleAiAutofill()}
+                        disabled={aiLoading || loading}
+                        className="rounded-lg border border-green-300 bg-white px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        {aiLoading
+                          ? 'Analyzing photo...'
+                          : '✨ Auto-fill from photo'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={clearPhotoSelection}
+                        disabled={loading || aiLoading}
+                        className="text-xs font-semibold text-red-600 underline hover:text-red-800 disabled:opacity-50"
+                      >
+                        Remove photo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {aiNotice && (
+                  <p className="text-xs text-green-900" role="status">
+                    {aiNotice}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Pickup window */}
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold">
+              <label
+                htmlFor="listing-pickup-start"
+                className="mb-2 block text-sm font-semibold"
+              >
                 Pickup starts *
               </label>
 
               <input
+                id="listing-pickup-start"
                 type="datetime-local"
+                min={minDateTimeLocal}
                 value={pickupStart}
-                onChange={(e) =>
-                  setPickupStart(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setPickupStart(e.target.value)}
                 disabled={loading}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
                 required
@@ -815,18 +783,19 @@ export default function PostListingForm({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold">
+              <label
+                htmlFor="listing-pickup-end"
+                className="mb-2 block text-sm font-semibold"
+              >
                 Pickup ends *
               </label>
 
               <input
+                id="listing-pickup-end"
                 type="datetime-local"
+                min={pickupStart || minDateTimeLocal}
                 value={pickupEnd}
-                onChange={(e) =>
-                  setPickupEnd(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setPickupEnd(e.target.value)}
                 disabled={loading}
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
                 required
@@ -835,7 +804,6 @@ export default function PostListingForm({
           </div>
         </div>
 
-        {/* Actions */}
         <div className="mt-7 flex gap-3">
           <button
             type="button"
@@ -851,9 +819,7 @@ export default function PostListingForm({
             disabled={loading}
             className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading
-              ? 'Finding location & posting...'
-              : 'Post Food'}
+            {loading ? 'Finding location & posting...' : 'Post Food'}
           </button>
         </div>
       </form>

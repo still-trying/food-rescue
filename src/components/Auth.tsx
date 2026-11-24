@@ -5,6 +5,8 @@ type Props = {
   onAuthenticated: () => void
 }
 
+type AuthMode = 'login' | 'signup' | 'reset'
+
 function getAuthErrorMessage(errorMessage: string) {
   const message = errorMessage.toLowerCase()
 
@@ -31,23 +33,15 @@ function getAuthErrorMessage(errorMessage: string) {
     return 'Too many attempts. Please wait a moment and try again.'
   }
 
-  if (
-    message.includes('network') ||
-    message.includes('fetch')
-  ) {
+  if (message.includes('network') || message.includes('fetch')) {
     return 'Unable to connect to the server. Please check your internet connection.'
   }
 
   return 'Something went wrong. Please try again.'
 }
 
-export default function Auth({
-  onAuthenticated,
-}: Props) {
-  const [mode, setMode] = useState<
-    'login' | 'signup'
-  >('login')
-
+export default function Auth({ onAuthenticated }: Props) {
+  const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -56,21 +50,16 @@ export default function Auth({
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  const switchMode = (
-    newMode: 'login' | 'signup'
-  ) => {
+  const switchMode = (newMode: AuthMode) => {
     if (loading) {
       return
     }
-
     setMode(newMode)
     setError('')
     setMessage('')
   }
 
-  const handleSubmit = async (
-    e: React.FormEvent
-  ) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (loading) {
@@ -80,18 +69,15 @@ export default function Auth({
     setError('')
     setMessage('')
 
-    const normalizedEmail =
-      email.trim().toLowerCase()
-
+    const normalizedEmail = email.trim().toLowerCase()
     const trimmedName = name.trim()
 
-    // Basic validation
     if (!normalizedEmail) {
       setError('Please enter your email address.')
       return
     }
 
-    if (!normalizedEmail.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError('Please enter a valid email address.')
       return
     }
@@ -101,99 +87,100 @@ export default function Auth({
         setError('Please enter your name.')
         return
       }
-
       if (trimmedName.length > 100) {
-        setError(
-          'Name must be 100 characters or less.'
-        )
+        setError('Name must be 100 characters or less.')
         return
       }
     }
 
-    if (!password) {
-      setError('Please enter your password.')
-      return
-    }
-
-    if (password.length < 6) {
-      setError(
-        'Password must be at least 6 characters.'
-      )
-      return
+    if (mode !== 'reset') {
+      if (!password) {
+        setError('Please enter your password.')
+        return
+      }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.')
+        return
+      }
     }
 
     setLoading(true)
 
     try {
+      if (mode === 'reset') {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          normalizedEmail,
+          { redirectTo: window.location.origin }
+        )
+
+        if (resetError) {
+          if (import.meta.env.DEV) {
+            console.error('Password reset error:', resetError)
+          }
+          setError(getAuthErrorMessage(resetError.message))
+          return
+        }
+
+        setMessage(
+          'If an account exists for that email, a password reset link has been sent.'
+        )
+        return
+      }
+
       if (mode === 'signup') {
-        const { data, error } =
-          await supabase.auth.signUp({
-            email: normalizedEmail,
-            password,
-            options: {
-              data: {
-                full_name: trimmedName,
-              },
+        const { data, error: signupError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            data: {
+              full_name: trimmedName,
             },
-          })
+          },
+        })
 
-        if (error) {
-          console.error(
-            'Signup error:',
-            error
-          )
+        if (signupError) {
+          if (import.meta.env.DEV) {
+            console.error('Signup error:', signupError)
+          }
+          setError(getAuthErrorMessage(signupError.message))
+          return
+        }
 
+        if (data.user && data.user.identities?.length === 0) {
           setError(
-            getAuthErrorMessage(error.message)
+            'An account with this email already exists. Try logging in instead.'
           )
           return
         }
 
-        // Existing account (Supabase obfuscates this)
-if (data.user && data.user.identities?.length === 0) {
-  setError(
-    'An account with this email already exists. Try logging in instead.'
-  )
-  return
-}
+        if (data.session) {
+          onAuthenticated()
+          return
+        }
 
-// New account with auto-login
-if (data.session) {
-  onAuthenticated()
-  return
-}
-
-// New account requiring email confirmation
-setMessage(
-  'Account created successfully. Please check your email if confirmation is enabled.'
-)
+        setMessage(
+          'Account created successfully. Please check your email if confirmation is enabled.'
+        )
       } else {
-        const { error } =
-          await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          })
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        })
 
-        if (error) {
-          console.error(
-            'Login error:',
-            error
-          )
-
-          setError(
-            getAuthErrorMessage(error.message)
-          )
+        if (loginError) {
+          if (import.meta.env.DEV) {
+            console.error('Login error:', loginError)
+          }
+          setError(getAuthErrorMessage(loginError.message))
           return
         }
 
         onAuthenticated()
       }
     } catch (err) {
-      console.error(
-        'Unexpected authentication error:',
-        err
-      )
-
+      if (import.meta.env.DEV) {
+        console.error('Unexpected authentication error:', err)
+      }
       setError(
         'Something went wrong while authenticating. Please try again.'
       )
@@ -205,13 +192,8 @@ setMessage(
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
       <div className="w-full max-w-md rounded-2xl border bg-white p-8 shadow-sm">
-
-        {/* Header */}
         <div className="mb-8 text-center">
-          <div
-            className="text-4xl"
-            aria-hidden="true"
-          >
+          <div className="text-4xl" aria-hidden="true">
             🍱
           </div>
 
@@ -224,54 +206,59 @@ setMessage(
           </p>
         </div>
 
-        {/* Login / Signup switch */}
-        <div
-          className="mb-6 flex rounded-xl bg-gray-100 p-1"
-          role="tablist"
-          aria-label="Authentication mode"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'login'}
-            onClick={() =>
-              switchMode('login')
-            }
-            disabled={loading}
-            className={`flex-1 rounded-lg py-2 font-medium transition ${
-              mode === 'login'
-                ? 'bg-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            } disabled:cursor-not-allowed disabled:opacity-50`}
+        {mode !== 'reset' ? (
+          <div
+            className="mb-6 flex rounded-xl bg-gray-100 p-1"
+            role="tablist"
+            aria-label="Authentication mode"
           >
-            Login
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
+              onClick={() => switchMode('login')}
+              disabled={loading}
+              className={`flex-1 rounded-lg py-2 font-medium transition ${
+                mode === 'login'
+                  ? 'bg-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              Login
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'signup'}
-            onClick={() =>
-              switchMode('signup')
-            }
-            disabled={loading}
-            className={`flex-1 rounded-lg py-2 font-medium transition ${
-              mode === 'signup'
-                ? 'bg-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            Sign Up
-          </button>
-        </div>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'signup'}
+              onClick={() => switchMode('signup')}
+              disabled={loading}
+              className={`flex-1 rounded-lg py-2 font-medium transition ${
+                mode === 'signup'
+                  ? 'bg-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              Sign Up
+            </button>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Reset Password
+            </h2>
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              disabled={loading}
+              className="text-sm font-medium text-green-700 hover:underline"
+            >
+              Back to Login
+            </button>
+          </div>
+        )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4"
-          noValidate
-        >
-
-          {/* Name */}
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {mode === 'signup' && (
             <div>
               <label
@@ -285,9 +272,7 @@ setMessage(
                 id="name"
                 type="text"
                 value={name}
-                onChange={(e) =>
-                  setName(e.target.value)
-                }
+                onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
                 maxLength={100}
                 autoComplete="name"
@@ -298,12 +283,8 @@ setMessage(
             </div>
           )}
 
-          {/* Email */}
           <div>
-            <label
-              htmlFor="email"
-              className="mb-2 block text-sm font-semibold"
-            >
+            <label htmlFor="email" className="mb-2 block text-sm font-semibold">
               Email
             </label>
 
@@ -311,9 +292,7 @@ setMessage(
               id="email"
               type="email"
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
               disabled={loading}
@@ -322,42 +301,54 @@ setMessage(
             />
           </div>
 
-          {/* Password */}
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-2 block text-sm font-semibold"
-            >
-              Password
-            </label>
+          {mode !== 'reset' && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-semibold"
+                >
+                  Password
+                </label>
 
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
-              placeholder="••••••••"
-              minLength={6}
-              autoComplete={
-                mode === 'login'
-                  ? 'current-password'
-                  : 'new-password'
-              }
-              disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 disabled:bg-gray-100"
-              required
-            />
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('reset')}
+                    disabled={loading}
+                    className="text-xs font-medium text-green-700 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
 
-            {mode === 'signup' && (
-              <p className="mt-1 text-xs text-gray-500">
-                Password must be at least 6 characters.
-              </p>
-            )}
-          </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                minLength={6}
+                autoComplete={
+                  mode === 'login' ? 'current-password' : 'new-password'
+                }
+                disabled={loading}
+                aria-describedby={
+                  mode === 'signup' ? 'password-help' : undefined
+                }
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 disabled:bg-gray-100"
+                required
+              />
 
-          {/* Error */}
+              {mode === 'signup' && (
+                <p id="password-help" className="mt-1 text-xs text-gray-500">
+                  Password must be at least 6 characters.
+                </p>
+              )}
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
@@ -368,9 +359,7 @@ setMessage(
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setError('')
-                  }
+                  onClick={() => setError('')}
                   className="font-bold text-red-500 hover:text-red-700"
                   aria-label="Dismiss error"
                 >
@@ -380,7 +369,6 @@ setMessage(
             </div>
           )}
 
-          {/* Success / informational message */}
           {message && (
             <div
               role="status"
@@ -391,9 +379,7 @@ setMessage(
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setMessage('')
-                  }
+                  onClick={() => setMessage('')}
                   className="font-bold text-green-600 hover:text-green-800"
                   aria-label="Dismiss message"
                 >
@@ -403,7 +389,6 @@ setMessage(
             </div>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -412,10 +397,14 @@ setMessage(
             {loading
               ? mode === 'login'
                 ? 'Logging in...'
-                : 'Creating account...'
+                : mode === 'signup'
+                  ? 'Creating account...'
+                  : 'Sending reset link...'
               : mode === 'login'
                 ? 'Login'
-                : 'Create Account'}
+                : mode === 'signup'
+                  ? 'Create Account'
+                  : 'Send Reset Link'}
           </button>
         </form>
       </div>

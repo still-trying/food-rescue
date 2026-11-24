@@ -388,6 +388,8 @@ flowchart LR
 
 ## 🗄️ Database Schema
 
+Public listing metadata (`listings`) is separated from private pickup details (`listing_pickup_details`), so exact pickup addresses, instructions, and donor phone numbers are only visible to the donor and the successful claimant.
+
 ```sql
 create table public.listings (
   id uuid primary key default gen_random_uuid(),
@@ -398,8 +400,8 @@ create table public.listings (
   photo_url text,
 
   location_text text not null,
-  latitude numeric(9,6),
-  longitude numeric(9,6),
+  approx_latitude numeric(9,6),
+  approx_longitude numeric(9,6),
 
   pickup_window_start timestamptz not null,
   pickup_window_end timestamptz not null,
@@ -411,6 +413,15 @@ create table public.listings (
   claimed_by uuid references auth.users(id),
 
   created_at timestamptz not null default now()
+);
+
+create table public.listing_pickup_details (
+  listing_id uuid primary key references public.listings(id) on delete cascade,
+  pickup_address text not null,
+  pickup_instructions text,
+  contact_phone text,
+  pickup_latitude numeric(9,6),
+  pickup_longitude numeric(9,6)
 );
 
 create index listings_status_created_idx
@@ -431,15 +442,17 @@ check (
 );
 
 alter table public.listings
-add constraint listings_latitude_check
-check (latitude is null or (latitude >= -90 and latitude <= 90));
+add constraint listings_approx_latitude_check
+check (approx_latitude is null or (approx_latitude >= -90 and approx_latitude <= 90));
 
 alter table public.listings
-add constraint listings_longitude_check
-check (longitude is null or (longitude >= -180 and longitude <= 180));
+add constraint listings_approx_longitude_check
+check (approx_longitude is null or (approx_longitude >= -180 and approx_longitude <= 180));
 ```
 
-**Existing listing compatibility** — `latitude`/`longitude` are nullable so listings created before location support still work. Legacy rows with `NULL` coordinates remain visible in the normal feed but can't participate in distance filtering or distance display until coordinates are backfilled.
+**Mutations via RPCs** — Creating listings (`create_listing_with_pickup_details`), claiming (`claim_listing`), pickup completion (`mark_listing_picked_up`), cancelling (`cancel_listing`), releasing claims (`unclaim_listing`), and reporting (`report_listing`) run through PostgreSQL RPCs (`SECURITY DEFINER`) rather than direct table updates.
+
+**Existing listing compatibility** — `approx_latitude`/`approx_longitude` are nullable so listings created before location support still work. Legacy rows with `NULL` coordinates remain visible in the normal feed but can't participate in distance filtering or distance display until coordinates are backfilled.
 
 ---
 
@@ -652,6 +665,8 @@ The app runs at `http://localhost:5173`.
 ### 5. Production build
 
 ```bash
+npm run lint
+npm test
 npm run build
 npm run preview
 ```
