@@ -3,6 +3,7 @@ type Props = {
   loggingOut: boolean
   onNavigateHome: () => void
   onOpenPost: () => void
+  onOpenProfile: () => void
   onLogout: () => void
 }
 
@@ -11,6 +12,7 @@ export default function Header({
   loggingOut,
   onNavigateHome,
   onOpenPost,
+  onOpenProfile,
   onLogout,
 }: Props) {
   return (
@@ -27,7 +29,7 @@ export default function Header({
           </p>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-xs text-gray-500">Logged in as</p>
             <p className="max-w-48 truncate text-sm font-medium">
@@ -37,9 +39,18 @@ export default function Header({
 
           <button
             type="button"
+            onClick={onOpenProfile}
+            disabled={loggingOut}
+            className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            👤 Profile
+          </button>
+
+          <button
+            type="button"
             onClick={onOpenPost}
             disabled={loggingOut}
-            className="rounded-xl bg-green-600 px-5 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:text-base"
           >
             + Post Surplus
           </button>
@@ -48,7 +59,7 @@ export default function Header({
             type="button"
             onClick={onLogout}
             disabled={loggingOut}
-            className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
           >
             {loggingOut ? 'Logging out...' : 'Logout'}
           </button>
@@ -57,4 +68,3 @@ export default function Header({
     </header>
   )
 }
-

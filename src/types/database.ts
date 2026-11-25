@@ -1,4 +1,11 @@
-import type { Listing, ReportReason } from './listing'
+import type {
+  DietaryType,
+  Listing,
+  OrganizationType,
+  ReportReason,
+  StorageType,
+  UserProfile,
+} from './listing'
 
 export type Database = {
   public: {
@@ -49,6 +56,7 @@ export type Database = {
           contact_phone: string | null
           pickup_latitude: number | null
           pickup_longitude: number | null
+          pickup_pin?: string | null
         }
         Insert: {
           listing_id: string
@@ -108,6 +116,24 @@ export type Database = {
         }
         Update: {
           body?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: UserProfile
+        Insert: {
+          id: string
+          display_name?: string | null
+          organization_name?: string | null
+          organization_type?: OrganizationType | null
+          is_verified?: boolean
+          updated_at?: string
+        }
+        Update: {
+          display_name?: string | null
+          organization_name?: string | null
+          organization_type?: OrganizationType | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -186,6 +212,35 @@ export type Database = {
           p_description: string | null
           p_quantity: string | null
           p_pickup_window_end: string
+        }
+        Returns: Listing | null
+      }
+      get_listings_feed: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Listing[]
+      }
+      set_listing_safety_metadata: {
+        Args: {
+          p_listing_id: string
+          p_dietary_type: DietaryType | null
+          p_allergens: string[]
+          p_storage_type: StorageType | null
+        }
+        Returns: Listing | null
+      }
+      generate_pickup_pin: {
+        Args: {
+          p_listing_id: string
+        }
+        Returns: string
+      }
+      verify_and_mark_picked_up: {
+        Args: {
+          p_listing_id: string
+          p_pin: string
         }
         Returns: Listing | null
       }

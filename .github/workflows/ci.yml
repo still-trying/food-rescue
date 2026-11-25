@@ -29,6 +29,9 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Evaluate ML heuristics & guardrails
+        run: npm run eval:ml
+
       - name: Typecheck
         run: npx tsc -b --noEmit
 

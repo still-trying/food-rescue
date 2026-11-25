@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { formatCategoryLabel, isValidCategory } from '../src/constants/categories'
+import {
+  formatCategoryLabel,
+  formatDietaryLabel,
+  formatStorageLabel,
+  isValidCategory,
+} from '../src/constants/categories'
 import type { Listing } from '../src/types/listing'
 import { isListingExpired, toLocalDateTimeInputValue } from '../src/utils/date'
 import { calculateDistanceKm, formatDistance } from '../src/utils/geo'
 import { geocodeLocation } from '../src/utils/geocoding'
 import { detectImageMimeFromBytes } from '../src/utils/imageProcessor'
 import { filterAndSortListings } from '../src/utils/listingFilters'
+import {
+  mergeListingsSnapshot,
+  type RealtimeChange,
+} from '../src/utils/listingsMerge'
 import {
   latLonToTileFraction,
   latLonToViewportPixel,
@@ -22,8 +31,10 @@ import {
   computeRescueScore,
   detectPublicPiiLeak,
   isEndingSoon,
+  predictExpiryRisk,
   suggestCategoryFromText,
 } from '../src/utils/smartRescue'
+import { scrubPii } from '../src/utils/telemetry'
 
 function makeListing(overrides: Partial<Listing> = {}): Listing {
   return {
@@ -157,12 +168,29 @@ describe('image magic-byte validation', () => {
   })
 })
 
-describe('categories', () => {
-  it('validates and formats known categories', () => {
+describe('categories & safety labels', () => {
+  it('validates and formats known categories, dietary types, and storage types', () => {
     assert.equal(isValidCategory('cooked_meals'), true)
     assert.equal(isValidCategory('invalid_cat'), false)
     assert.equal(formatCategoryLabel('bakery'), '🥖 Bakery')
     assert.equal(formatCategoryLabel('unknown'), null)
+    assert.equal(formatDietaryLabel('vegan'), '🌱 Vegan')
+    assert.equal(formatStorageLabel('refrigerated'), '❄️ Refrigerated')
+  })
+})
+
+describe('telemetry PII scrubbing', () => {
+  it('redacts emails, phones, and JWTs while preserving dates and context', () => {
+    const raw =
+      '2026-11-25 Error for user@example.com phone +91 98765 43210 token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abc_123'
+    const scrubbed = scrubPii(raw)
+    assert.ok(scrubbed.includes('2026-11-25'))
+    assert.ok(!scrubbed.includes('user@example.com'))
+    assert.ok(!scrubbed.includes('98765'))
+    assert.ok(!scrubbed.includes('eyJhbGci'))
+    assert.ok(scrubbed.includes('[REDACTED_EMAIL]'))
+    assert.ok(scrubbed.includes('[REDACTED_PHONE]'))
+    assert.ok(scrubbed.includes('[REDACTED_TOKEN]'))
   })
 })
 
@@ -252,6 +280,73 @@ describe('smartRescue & impact analytics', () => {
     assert.equal(metrics.personalClaimedRescues, 1)
     assert.equal(metrics.estimatedMealsRescued, 9)
     assert.equal(metrics.estimatedKgSaved, 4.3)
+  })
+
+  it('assesses higher expiry risk for short unphotographed listings than long well-described ones', () => {
+    const highRisk = predictExpiryRisk(
+      makeListing({
+        category: 'cooked_meals',
+        photo_url: null,
+        quantity: null,
+        approx_latitude: null,
+        approx_longitude: null,
+        pickup_window_start: '2026-11-25T11:30:00.000Z',
+        pickup_window_end: '2026-11-25T12:30:00.000Z',
+      }),
+      nowMs
+    )
+    const lowRisk = predictExpiryRisk(
+      makeListing({
+        category: 'groceries',
+        photo_url: 'https://example.com/photo.jpg',
+        quantity: 'Serves 10',
+        pickup_window_start: '2026-11-25T10:00:00.000Z',
+        pickup_window_end: '2026-11-25T19:00:00.000Z',
+      }),
+      nowMs
+    )
+
+    assert.equal(highRisk.riskTier, 'high')
+    assert.equal(lowRisk.riskTier, 'low')
+    assert.ok(highRisk.riskScore > lowRisk.riskScore)
+  })
+})
+
+describe('listingsMerge snapshot reconciliation', () => {
+  it('preserves newer realtime claims/deletes over older in-flight DB snapshots and prunes obsolete markers', () => {
+    const snapshot = [
+      makeListing({ id: 'keep', status: 'available', created_at: '2026-11-25T09:00:00.000Z' }),
+      makeListing({ id: 'deleted-in-flight', status: 'available', created_at: '2026-11-25T10:00:00.000Z' }),
+      makeListing({ id: 'claimed-in-flight', status: 'available', created_at: '2026-11-25T11:00:00.000Z' }),
+    ]
+
+    const pending = new Map<string, RealtimeChange>([
+      ['obsolete-marker', { version: 2, deleted: true }],
+      ['deleted-in-flight', { version: 6, deleted: true }],
+      [
+        'claimed-in-flight',
+        {
+          version: 7,
+          deleted: false,
+          listing: makeListing({
+            id: 'claimed-in-flight',
+            status: 'claimed',
+            claimed_by: 'user-2',
+            created_at: '2026-11-25T11:00:00.000Z',
+          }),
+        },
+      ],
+    ])
+
+    const merged = mergeListingsSnapshot(snapshot, pending, 5)
+
+    assert.deepEqual(
+      merged.map((l) => l.id),
+      ['claimed-in-flight', 'keep']
+    )
+    assert.equal(merged[0]?.status, 'claimed')
+    assert.equal(pending.has('obsolete-marker'), false)
+    assert.equal(pending.has('claimed-in-flight'), true)
   })
 })
 

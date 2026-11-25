@@ -1,0 +1,83 @@
+{
+  "categoryCases": [
+    { "text": "Vegetable Biryani Trays", "expected": "cooked_meals" },
+    { "text": "Fresh Sourdough Bread Loaves", "expected": "bakery" },
+    { "text": "Paneer Curry and Roti Boxes", "expected": "cooked_meals" },
+    { "text": "Chocolate Croissants and Muffins", "expected": "bakery" },
+    { "text": "Organic Apples and Bananas", "expected": "fruits_vegetables" },
+    { "text": "Fresh Spinach and Tomatoes", "expected": "fruits_vegetables" },
+    { "text": "Packaged Milk and Yogurt", "expected": "groceries" },
+    { "text": "Lentils and Whole Wheat Flour", "expected": "groceries" },
+    { "text": "Mango Juice and Cold Coffee", "expected": "beverages" },
+    { "text": "Iced Tea Bottles", "expected": "beverages" },
+    { "text": "Pav Bhaji Dinner Portions", "expected": "cooked_meals" },
+    { "text": "Assorted Bakery Cookies", "expected": "bakery" }
+  ],
+  "piiCases": [
+    { "text": "Call me at +91 98765 43210 near park", "hasPii": true },
+    { "text": "Email donor@example.org for pickup", "hasPii": true },
+    { "text": "Flat No. 402, Sunrise Towers", "hasPii": true },
+    { "text": "House No 19, Sector 5", "hasPii": true },
+    { "text": "Gomti Nagar, Lucknow", "hasPii": false },
+    { "text": "Fresh vegetarian lunch boxes, serves 8", "hasPii": false },
+    { "text": "Near main metro station gate 2", "hasPii": false },
+    { "text": "20 pastries packed in clean boxes", "hasPii": false }
+  ],
+  "expiryRiskCases": [
+    {
+      "labelExpired": 1,
+      "hoursLeft": 0.4,
+      "windowHours": 1.0,
+      "category": "cooked_meals",
+      "hasPhoto": false,
+      "hasQuantity": false,
+      "hasCoords": false
+    },
+    {
+      "labelExpired": 1,
+      "hoursLeft": 0.7,
+      "windowHours": 1.2,
+      "category": "beverages",
+      "hasPhoto": false,
+      "hasQuantity": true,
+      "hasCoords": true
+    },
+    {
+      "labelExpired": 1,
+      "hoursLeft": 0.8,
+      "windowHours": 1.5,
+      "category": "bakery",
+      "hasPhoto": false,
+      "hasQuantity": false,
+      "hasCoords": true
+    },
+    {
+      "labelExpired": 0,
+      "hoursLeft": 5.5,
+      "windowHours": 6.0,
+      "category": "groceries",
+      "hasPhoto": true,
+      "hasQuantity": true,
+      "hasCoords": true
+    },
+    {
+      "labelExpired": 0,
+      "hoursLeft": 7.0,
+      "windowHours": 8.0,
+      "category": "bakery",
+      "hasPhoto": true,
+      "hasQuantity": true,
+      "hasCoords": true
+    },
+    {
+      "labelExpired": 0,
+      "hoursLeft": 3.5,
+      "windowHours": 4.0,
+      "category": "fruits_vegetables",
+      "hasPhoto": true,
+      "hasQuantity": true,
+      "hasCoords": true
+    }
+  ]
+}
+

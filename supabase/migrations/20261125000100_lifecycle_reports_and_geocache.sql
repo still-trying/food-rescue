@@ -34,15 +34,15 @@ create table if not exists public.listing_reports (
 );
 
 alter table public.listing_reports enable row level security;
+revoke all on public.listing_reports from anon, authenticated;
+grant select on public.listing_reports to authenticated;
 
 drop policy if exists "listing_reports_select_own" on public.listing_reports;
 create policy "listing_reports_select_own"
 on public.listing_reports
 for select
 to authenticated
-using (reported_by = auth.uid());
-
-revoke insert, update, delete on public.listing_reports from anon, authenticated;
+using (reported_by = (select auth.uid()));
 
 -- 3. Donor Cancel Available Listing RPC
 create or replace function public.cancel_listing(p_listing_id uuid)

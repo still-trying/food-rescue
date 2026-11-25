@@ -667,6 +667,7 @@ The app runs at `http://localhost:5173`.
 ```bash
 npm run lint
 npm test
+npm run eval:ml
 npm run build
 npm run preview
 ```

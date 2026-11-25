@@ -13,6 +13,7 @@ type Props = {
   onRetryPickupDetails: (listingId: string) => void
   onUpdated: (listing: Listing) => void
   onDeleted: (listingId: string) => void
+  onRepost: (listing: Listing) => void
 }
 
 export default function ListingFeed({
@@ -24,6 +25,7 @@ export default function ListingFeed({
   onRetryPickupDetails,
   onUpdated,
   onDeleted,
+  onRepost,
 }: Props) {
   if (listings.length === 0) {
     return (
@@ -64,6 +66,7 @@ export default function ListingFeed({
           onRetryPickupDetails={onRetryPickupDetails}
           onUpdated={onUpdated}
           onDeleted={onDeleted}
+          onRepost={onRepost}
         />
       ))}
     </section>

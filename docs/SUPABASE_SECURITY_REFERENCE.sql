@@ -15,6 +15,9 @@ alter table public.listing_pickup_details enable row level security;
 -- alter publication supabase_realtime drop table public.listing_pickup_details;
 
 -- 2. Verify strict RLS on `listing_pickup_details` (donor or successful claimant ONLY)
+revoke all on public.listing_pickup_details from anon, authenticated;
+grant select on public.listing_pickup_details to authenticated;
+
 drop policy if exists "pickup_details_select_authorized" on public.listing_pickup_details;
 create policy "pickup_details_select_authorized"
 on public.listing_pickup_details
@@ -26,18 +29,14 @@ using (
     from public.listings l
     where l.id = listing_pickup_details.listing_id
       and (
-        l.posted_by = auth.uid()
+        l.posted_by = (select auth.uid())
         or (
-          l.claimed_by = auth.uid()
+          l.claimed_by = (select auth.uid())
           and l.status in ('claimed', 'picked_up')
         )
       )
   )
 );
-
--- Block direct client INSERT/UPDATE/DELETE on `listing_pickup_details`
--- (mutations should happen strictly via SECURITY DEFINER RPCs):
-revoke insert, update, delete on public.listing_pickup_details from authenticated, anon;
 
 -- 3. Recommended server-side constraints on `listings` and `listing_pickup_details`
 -- alter table public.listings

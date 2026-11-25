@@ -163,16 +163,24 @@ export function suggestCategoryFromText(text: string): FoodCategory | null {
     return null
   }
 
+  let bestCategory: FoodCategory | null = null
+  let bestScore = 0
+
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    let score = 0
     for (const keyword of keywords) {
-      const pattern = new RegExp(`\\b${keyword}\\b`, 'i')
+      const pattern = new RegExp(`\\b${keyword}(?:s|es)?\\b`, 'i')
       if (pattern.test(normalized)) {
-        return category as FoodCategory
+        score += 1
       }
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestCategory = category as FoodCategory
     }
   }
 
-  return null
+  return bestCategory
 }
 
 /**

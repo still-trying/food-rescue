@@ -37,3 +37,4 @@ export function mergeListingsSnapshot(
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 }
+

@@ -1,9 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
-const env = (import.meta as { env?: Record<string, string | undefined> }).env
-const supabaseUrl = env?.VITE_SUPABASE_URL
-const supabaseAnonKey = env?.VITE_SUPABASE_ANON_KEY
+const viteEnv = (import.meta as { env?: Record<string, string | undefined> })
+  .env
+const nodeEnv = (
+  globalThis as {
+    process?: { env?: Record<string, string | undefined> }
+  }
+).process?.env
+
+const supabaseUrl = viteEnv?.VITE_SUPABASE_URL ?? nodeEnv?.VITE_SUPABASE_URL
+const supabaseAnonKey =
+  viteEnv?.VITE_SUPABASE_ANON_KEY ?? nodeEnv?.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(

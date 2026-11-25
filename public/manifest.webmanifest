@@ -1,0 +1,17 @@
+{
+  "name": "Food Rescue",
+  "short_name": "Food Rescue",
+  "description": "Rescue surplus food locally before it goes to waste.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#16a34a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

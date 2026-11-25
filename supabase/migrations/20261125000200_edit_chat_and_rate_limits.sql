@@ -15,6 +15,8 @@ create index if not exists listing_messages_listing_created_idx
   on public.listing_messages (listing_id, created_at asc);
 
 alter table public.listing_messages enable row level security;
+revoke all on public.listing_messages from anon, authenticated;
+grant select on public.listing_messages to authenticated;
 
 drop policy if exists "listing_messages_select_participants" on public.listing_messages;
 create policy "listing_messages_select_participants"
@@ -27,16 +29,14 @@ using (
     from public.listings l
     where l.id = listing_messages.listing_id
       and (
-        l.posted_by = auth.uid()
+        l.posted_by = (select auth.uid())
         or (
-          l.claimed_by = auth.uid()
+          l.claimed_by = (select auth.uid())
           and l.status in ('claimed', 'picked_up')
         )
       )
   )
 );
-
-revoke insert, update, delete on public.listing_messages from anon, authenticated;
 
 -- 2. Send listing message RPC (donor <-> claimant only)
 create or replace function public.send_listing_message(
@@ -204,3 +204,4 @@ create trigger trg_enforce_listing_limits
 before insert or update on public.listings
 for each row
 execute function public.enforce_listing_limits();
+

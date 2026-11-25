@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  COMMON_ALLERGENS,
+  DIETARY_OPTIONS,
   FOOD_CATEGORIES,
   formatCategoryLabel,
   isValidCategory,
+  STORAGE_OPTIONS,
 } from '../constants/categories'
 import { supabase } from '../lib/supabase'
-import type { Listing } from '../types/listing'
+import type { DietaryType, Listing, StorageType } from '../types/listing'
 import { toLocalDateTimeInputValue } from '../utils/date'
 import { geocodeLocation } from '../utils/geocoding'
 import {
@@ -21,6 +24,7 @@ import {
 
 type Props = {
   userId: string
+  initialDraft?: Partial<Listing> | null
   onCreated: (listing: Listing) => void
   onCancel: () => void
 }
@@ -61,20 +65,30 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 export default function PostListingForm({
   userId,
+  initialDraft = null,
   onCreated,
   onCancel,
 }: Props) {
   const [defaultWindow] = useState(getDefaultPickupWindow)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [location, setLocation] = useState('')
+  const [title, setTitle] = useState(initialDraft?.title ?? '')
+  const [description, setDescription] = useState(initialDraft?.description ?? '')
+  const [category, setCategory] = useState(initialDraft?.category ?? '')
+  const [quantity, setQuantity] = useState(initialDraft?.quantity ?? '')
+  const [location, setLocation] = useState(initialDraft?.location_text ?? '')
   const [pickupAddress, setPickupAddress] = useState('')
   const [pickupInstructions, setPickupInstructions] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [pickupStart, setPickupStart] = useState(defaultWindow.start)
   const [pickupEnd, setPickupEnd] = useState(defaultWindow.end)
+  const [dietaryType, setDietaryType] = useState<DietaryType | ''>(
+    initialDraft?.dietary_type ?? ''
+  )
+  const [storageType, setStorageType] = useState<StorageType | ''>(
+    initialDraft?.storage_type ?? ''
+  )
+  const [allergens, setAllergens] = useState<string[]>(
+    initialDraft?.allergens ?? []
+  )
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
 
@@ -97,6 +111,14 @@ export default function PostListingForm({
       revokePreviewUrl()
     }
   }, [])
+
+  const toggleAllergen = (allergen: string) => {
+    setAllergens((prev) =>
+      prev.includes(allergen)
+        ? prev.filter((item) => item !== allergen)
+        : [...prev, allergen]
+    )
+  }
 
   const clearPhotoSelection = () => {
     revokePreviewUrl()
@@ -412,7 +434,25 @@ export default function PostListingForm({
         return
       }
 
-      onCreated(data)
+      let finalListing = data
+
+      // Attach optional dietary & safety metadata when provided (requires 20261125000300 migration).
+      if (dietaryType || storageType || allergens.length > 0) {
+        const { data: safetyData, error: safetyError } = await supabase.rpc(
+          'set_listing_safety_metadata',
+          {
+            p_listing_id: data.id,
+            p_dietary_type: dietaryType || null,
+            p_allergens: allergens,
+            p_storage_type: storageType || null,
+          }
+        )
+        if (!safetyError && safetyData) {
+          finalListing = safetyData
+        }
+      }
+
+      onCreated(finalListing)
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Unexpected listing creation error:', err)
@@ -759,6 +799,91 @@ export default function PostListingForm({
                 )}
               </div>
             )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+            <p className="text-sm font-semibold text-gray-800">
+              🥗 Dietary &amp; Food Safety Info (optional)
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="listing-dietary"
+                  className="mb-1.5 block text-xs font-semibold text-gray-700"
+                >
+                  Dietary Type
+                </label>
+                <select
+                  id="listing-dietary"
+                  value={dietaryType}
+                  onChange={(e) =>
+                    setDietaryType(e.target.value as DietaryType | '')
+                  }
+                  disabled={loading}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-600"
+                >
+                  <option value="">Not specified</option>
+                  {DIETARY_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="listing-storage"
+                  className="mb-1.5 block text-xs font-semibold text-gray-700"
+                >
+                  Storage Condition
+                </label>
+                <select
+                  id="listing-storage"
+                  value={storageType}
+                  onChange={(e) =>
+                    setStorageType(e.target.value as StorageType | '')
+                  }
+                  disabled={loading}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-600"
+                >
+                  <option value="">Not specified</option>
+                  {STORAGE_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold text-gray-700">
+                Contains common allergens
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {COMMON_ALLERGENS.map((allergen) => {
+                  const selected = allergens.includes(allergen)
+                  return (
+                    <button
+                      key={allergen}
+                      type="button"
+                      onClick={() => toggleAllergen(allergen)}
+                      aria-pressed={selected}
+                      disabled={loading}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                        selected
+                          ? 'border-amber-400 bg-amber-100 text-amber-900'
+                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {selected ? `✓ ${allergen}` : allergen}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">

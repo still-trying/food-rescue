@@ -7,24 +7,39 @@ const outDir = resolve('.tmp-test')
 
 try {
   await build({
-    input: resolve('tests/unit.test.ts'),
+    input: {
+      unit: resolve('tests/unit.test.ts'),
+      components: resolve('tests/components.test.tsx'),
+    },
     platform: 'node',
     external: [/^node:/],
     output: {
-      file: resolve(outDir, 'unit.test.mjs'),
+      dir: outDir,
       format: 'esm',
-      codeSplitting: false,
+      entryFileNames: '[name].test.mjs',
     },
   })
 
   const result = spawnSync(
     process.execPath,
-    ['--test', resolve(outDir, 'unit.test.mjs')],
-    { stdio: 'inherit' }
+    [
+      '--test',
+      resolve(outDir, 'unit.test.mjs'),
+      resolve(outDir, 'components.test.mjs'),
+    ],
+    {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        VITE_SUPABASE_URL:
+          process.env.VITE_SUPABASE_URL || 'https://example.supabase.co',
+        VITE_SUPABASE_ANON_KEY:
+          process.env.VITE_SUPABASE_ANON_KEY || 'example-anon-key',
+      },
+    }
   )
 
   process.exitCode = result.status ?? 1
 } finally {
   rmSync(outDir, { recursive: true, force: true })
 }
-

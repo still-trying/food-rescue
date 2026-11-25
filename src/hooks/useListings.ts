@@ -38,6 +38,7 @@ export function useListings({
   onClearRealtimeError,
 }: UseListingsOptions) {
   const [listings, setListings] = useState<Listing[]>([])
+  const [refreshing, setRefreshing] = useState(false)
   const [realtimeStatus, setRealtimeStatus] =
     useState<RealtimeStatus>('connecting')
   const [pickupDetailsById, setPickupDetailsById] = useState<
@@ -84,13 +85,29 @@ export function useListings({
 
       const requestId = ++listingLoadRequestRef.current
       const eventVersionAtStart = realtimeEventVersionRef.current
+      setRefreshing(true)
 
       try {
-        const { data, error: listingsError } = await supabase
-          .from('listings')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(FEED_FETCH_LIMIT)
+        // Prefer server-side filtered feed RPC when migrated; fall back cleanly.
+        let rows: Listing[] | null = null
+        let listingsError: { message: string } | null = null
+
+        const rpcRes = await supabase.rpc('get_listings_feed', {
+          p_limit: 200,
+          p_offset: 0,
+        })
+
+        if (!rpcRes.error && Array.isArray(rpcRes.data)) {
+          rows = rpcRes.data
+        } else {
+          const tableRes = await supabase
+            .from('listings')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(FEED_FETCH_LIMIT)
+          rows = tableRes.data
+          listingsError = tableRes.error
+        }
 
         if (requestId !== listingLoadRequestRef.current) {
           return
@@ -105,7 +122,7 @@ export function useListings({
         }
 
         const refreshedListings = mergeListingsSnapshot(
-          data ?? [],
+          rows ?? [],
           realtimeChangesRef.current,
           eventVersionAtStart
         )
@@ -120,6 +137,10 @@ export function useListings({
           console.error('Unexpected listings loading error:', err)
         }
         onError('Something went wrong while loading listings.')
+      } finally {
+        if (requestId === listingLoadRequestRef.current) {
+          setRefreshing(false)
+        }
       }
     },
     [onClearRealtimeError, onError]
@@ -590,6 +611,7 @@ export function useListings({
 
   return {
     listings: userId ? listings : EMPTY_LISTINGS,
+    refreshing,
     realtimeStatus: userId ? realtimeStatus : 'connecting',
     pickupDetailsById: userId ? pickupDetailsById : EMPTY_PICKUP_DETAILS,
     loadListings,

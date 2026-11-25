@@ -20,7 +20,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'tests/**/*.ts'],
+    files: ['scripts/**/*.mjs', 'tests/**/*.{ts,tsx}'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
       globals: globals.node,

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { reportClientError } from '../utils/telemetry'
 
 type Props = {
   children: ReactNode
@@ -16,9 +17,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    if (import.meta.env.DEV) {
-      console.error('Unhandled application error:', error, info)
-    }
+    reportClientError(`ErrorBoundary:${info.componentStack?.slice(0, 80) ?? 'root'}`, error)
   }
 
   private handleReload = () => {

@@ -1,13 +1,21 @@
-import { memo, useState } from 'react'
-import { formatCategoryLabel } from '../constants/categories'
+import { lazy, memo, Suspense, useState } from 'react'
+import {
+  formatCategoryLabel,
+  formatDietaryLabel,
+  formatStorageLabel,
+} from '../constants/categories'
 import type { PickupDetailsEntry } from '../hooks/useListings'
 import { supabase } from '../lib/supabase'
-import type { Listing, ReportReason } from '../types/listing'
+import type { Listing } from '../types/listing'
 import { formatDateTime, isListingExpired } from '../utils/date'
 import { formatDistance } from '../utils/geo'
-import { isEndingSoon } from '../utils/smartRescue'
+import { isEndingSoon, predictExpiryRisk } from '../utils/smartRescue'
+import EditListingModal from './EditListingModal'
+import ListingActions from './ListingActions'
 import ListingStatusBadge from './ListingStatusBadge'
 import { PrivateContactBox, PrivateDestinationBox } from './PickupDetailsPanel'
+
+const PickupChatPanel = lazy(() => import('./PickupChatPanel'))
 
 export type { Listing }
 
@@ -20,16 +28,9 @@ type Props = {
   onRetryPickupDetails: (listingId: string) => void
   onUpdated: (listing: Listing) => void
   onDeleted: (listingId: string) => void
+  onRepost: (listing: Listing) => void
   highlighted?: boolean
 }
-
-const REPORT_REASONS: readonly { value: ReportReason; label: string }[] = [
-  { value: 'unsafe_food', label: 'Food safety concern' },
-  { value: 'wrong_location', label: 'Inaccurate location or details' },
-  { value: 'spam', label: 'Spam or duplicate listing' },
-  { value: 'harassment', label: 'Inappropriate content' },
-  { value: 'other', label: 'Other' },
-] as const
 
 function ListingCard({
   listing,
@@ -40,23 +41,13 @@ function ListingCard({
   onRetryPickupDetails,
   onUpdated,
   onDeleted,
+  onRepost,
   highlighted = false,
 }: Props) {
-  const [claiming, setClaiming] = useState(false)
-  const [pickingUp, setPickingUp] = useState(false)
-  const [canceling, setCanceling] = useState(false)
-  const [confirmCancel, setConfirmCancel] = useState(false)
-  const [unclaiming, setUnclaiming] = useState(false)
-  const [confirmUnclaim, setConfirmUnclaim] = useState(false)
-
-  const [reportOpen, setReportOpen] = useState(false)
-  const [reportReason, setReportReason] = useState<ReportReason>('unsafe_food')
-  const [reportDetails, setReportDetails] = useState('')
-  const [reporting, setReporting] = useState(false)
-  const [reportSubmitted, setReportSubmitted] = useState(false)
-
   const [error, setError] = useState('')
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const isOwner = Boolean(currentUserId && listing.posted_by === currentUserId)
   const isClaimant = Boolean(
@@ -83,6 +74,7 @@ function ListingCard({
 
   const isExpired = isListingExpired(listing, nowMs)
   const endingSoon = isEndingSoon(listing, nowMs)
+  const expiryRisk = predictExpiryRisk(listing, nowMs)
   const showPhoto =
     Boolean(listing.photo_url) && failedPhotoUrl !== listing.photo_url
 
@@ -102,211 +94,6 @@ function ListingCard({
       return true
     } catch {
       return false
-    }
-  }
-
-  const handleClaim = async () => {
-    if (!currentUserId) {
-      setError('Please log in first.')
-      return
-    }
-    if (listing.posted_by === currentUserId) {
-      setError('You cannot claim your own listing.')
-      return
-    }
-    if (claiming) return
-
-    setError('')
-    setClaiming(true)
-
-    try {
-      const { data, error: rpcError } = await supabase.rpc('claim_listing', {
-        p_listing_id: listing.id,
-      })
-
-      if (rpcError) {
-        if (import.meta.env.DEV) {
-          console.error('Claim error:', rpcError)
-        }
-        const refreshed = await refreshListing()
-        setError(
-          refreshed
-            ? 'Unable to claim this food. The latest listing status has been loaded.'
-            : 'Unable to claim this food. Please check your connection and try again.'
-        )
-        return
-      }
-
-      if (!data) {
-        const refreshed = await refreshListing()
-        setError(
-          refreshed
-            ? 'This food could not be claimed. The latest listing status has been loaded.'
-            : 'This food is no longer available. It may have been removed, expired, or already claimed.'
-        )
-        return
-      }
-
-      onUpdated(data)
-    } catch {
-      await refreshListing()
-      setError(
-        'Something went wrong while claiming this food. The listing has been refreshed if available.'
-      )
-    } finally {
-      setClaiming(false)
-    }
-  }
-
-  const handlePickedUp = async () => {
-    if (!currentUserId || listing.claimed_by !== currentUserId) {
-      setError(
-        'Only the person who claimed this food can mark it as picked up.'
-      )
-      return
-    }
-    if (pickingUp) return
-
-    setError('')
-    setPickingUp(true)
-
-    try {
-      const { data, error: rpcError } = await supabase.rpc(
-        'mark_listing_picked_up',
-        { p_listing_id: listing.id }
-      )
-
-      if (rpcError || !data) {
-        const refreshed = await refreshListing()
-        setError(
-          refreshed
-            ? 'This listing changed before it could be updated. The latest status has been loaded.'
-            : 'Unable to mark this food as picked up. Please check your connection and try again.'
-        )
-        return
-      }
-
-      onUpdated(data)
-    } catch {
-      await refreshListing()
-      setError('Something went wrong while updating the pickup.')
-    } finally {
-      setPickingUp(false)
-    }
-  }
-
-  const handleCancelListing = async () => {
-    if (!isOwner || canceling) return
-    setError('')
-    setCanceling(true)
-
-    try {
-      const { data, error: rpcError } = await supabase.rpc('cancel_listing', {
-        p_listing_id: listing.id,
-      })
-
-      if (rpcError) {
-        if (import.meta.env.DEV) {
-          console.error('Cancel listing error:', rpcError)
-        }
-        setError(
-          rpcError.message.toLowerCase().includes('could not find')
-            ? 'Listing cancellation requires applying the latest Supabase migration.'
-            : 'Unable to cancel this listing. It may have already been claimed.'
-        )
-        setConfirmCancel(false)
-        await refreshListing()
-        return
-      }
-
-      if (!data) {
-        setError('Listing could not be cancelled because its status changed.')
-        setConfirmCancel(false)
-        await refreshListing()
-        return
-      }
-
-      onDeleted(listing.id)
-    } catch {
-      setError('Something went wrong while cancelling the listing.')
-    } finally {
-      setCanceling(false)
-    }
-  }
-
-  const handleUnclaim = async () => {
-    if (!isClaimant || unclaiming) return
-    setError('')
-    setUnclaiming(true)
-
-    try {
-      const { data, error: rpcError } = await supabase.rpc('unclaim_listing', {
-        p_listing_id: listing.id,
-      })
-
-      if (rpcError) {
-        if (import.meta.env.DEV) {
-          console.error('Unclaim listing error:', rpcError)
-        }
-        setError(
-          rpcError.message.toLowerCase().includes('could not find')
-            ? 'Releasing a claim requires applying the latest Supabase migration.'
-            : 'Unable to release this claim right now.'
-        )
-        setConfirmUnclaim(false)
-        await refreshListing()
-        return
-      }
-
-      if (!data) {
-        setError('Unable to release this claim. The listing status changed.')
-        setConfirmUnclaim(false)
-        await refreshListing()
-        return
-      }
-
-      setConfirmUnclaim(false)
-      onUpdated(data)
-    } catch {
-      setError('Something went wrong while releasing your claim.')
-    } finally {
-      setUnclaiming(false)
-    }
-  }
-
-  const handleReportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!currentUserId || reporting) return
-
-    setError('')
-    setReporting(true)
-
-    try {
-      const { error: rpcError } = await supabase.rpc('report_listing', {
-        p_listing_id: listing.id,
-        p_reason: reportReason,
-        p_details: reportDetails.trim() || null,
-      })
-
-      if (rpcError) {
-        if (import.meta.env.DEV) {
-          console.error('Report listing error:', rpcError)
-        }
-        setError(
-          rpcError.message.toLowerCase().includes('could not find')
-            ? 'Reporting requires applying the latest Supabase migration.'
-            : 'Unable to submit report right now. Please try again.'
-        )
-        return
-      }
-
-      setReportSubmitted(true)
-      setReportOpen(false)
-      setReportDetails('')
-    } catch {
-      setError('Something went wrong while submitting your report.')
-    } finally {
-      setReporting(false)
     }
   }
 
@@ -333,6 +120,8 @@ function ListingCard({
   }
 
   const categoryLabel = formatCategoryLabel(listing.category)
+  const dietaryLabel = formatDietaryLabel(listing.dietary_type)
+  const storageLabel = formatStorageLabel(listing.storage_type)
   const distanceLabel = formatDistance(distanceKm)
 
   return (
@@ -344,6 +133,14 @@ function ListingCard({
           : 'border-gray-200'
       }`}
     >
+      {editOpen && (
+        <EditListingModal
+          listing={listing}
+          onUpdated={onUpdated}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+
       {showPhoto && listing.photo_url ? (
         <div className="relative overflow-hidden bg-gray-100">
           <img
@@ -398,11 +195,37 @@ function ListingCard({
               {categoryLabel}
             </span>
           )}
+          {dietaryLabel && (
+            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+              {dietaryLabel}
+            </span>
+          )}
+          {storageLabel && (
+            <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800">
+              {storageLabel}
+            </span>
+          )}
+          {listing.allergens && listing.allergens.length > 0 && (
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">
+              ⚠️ Contains: {listing.allergens.join(', ')}
+            </span>
+          )}
           {endingSoon && (
             <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
               ⚡ Rescue within 1 hr
             </span>
           )}
+          {!endingSoon &&
+            !isExpired &&
+            listing.status === 'available' &&
+            expiryRisk.riskTier === 'high' && (
+              <span
+                title={expiryRisk.reason}
+                className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-800"
+              >
+                🔥 High expiry risk
+              </span>
+            )}
         </div>
 
         {listing.description && (
@@ -524,34 +347,33 @@ function ListingCard({
             )
           )}
 
-          {listing.status === 'claimed' &&
-            listing.claimed_by === currentUserId && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-sm font-bold text-blue-800">
-                    ✅ Food reserved for you
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-blue-700">
-                    Head to the pickup location during the pickup window, then
-                    mark the food as picked up.
-                  </p>
-                </div>
-
-                {pickupDetails && pickupDetails.pickup_address.trim() ? (
-                  <button
-                    type="button"
-                    onClick={handleGetDirections}
-                    className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    🚗 Get Directions to Pickup
-                  </button>
-                ) : (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center text-xs text-gray-500">
-                    📍 Map location unavailable
-                  </div>
-                )}
+          {listing.status === 'claimed' && isClaimant && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-bold text-blue-800">
+                  ✅ Food reserved for you
+                </p>
+                <p className="mt-1 text-sm leading-5 text-blue-700">
+                  Head to the pickup location during the pickup window, then
+                  mark the food as picked up.
+                </p>
               </div>
-            )}
+
+              {pickupDetails && pickupDetails.pickup_address.trim() ? (
+                <button
+                  type="button"
+                  onClick={handleGetDirections}
+                  className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  🚗 Get Directions to Pickup
+                </button>
+              ) : (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center text-xs text-gray-500">
+                  📍 Map location unavailable
+                </div>
+              )}
+            </div>
+          )}
 
           {canReadPickupDetails && (
             <PrivateContactBox
@@ -562,208 +384,49 @@ function ListingCard({
             />
           )}
 
-          {listing.status === 'available' && !isExpired && (
-            isOwner ? (
-              <div className="space-y-2">
-                <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm font-semibold text-gray-600">
-                  This is your listing.
-                </div>
-
-                {!confirmCancel ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmCancel(true)}
-                    className="w-full rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                  >
-                    Cancel Listing
-                  </button>
-                ) : (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                    <p className="text-center text-xs font-medium text-red-800">
-                      Remove this listing from the board?
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmCancel(false)}
-                        disabled={canceling}
-                        className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700"
-                      >
-                        Keep
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleCancelListing()}
-                        disabled={canceling}
-                        className="flex-1 rounded-lg bg-red-600 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                      >
-                        {canceling ? 'Cancelling...' : 'Confirm Cancel'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleClaim()}
-                disabled={claiming}
-                className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {claiming ? 'Claiming...' : 'Claim Food'}
-              </button>
-            )
-          )}
-
-          {listing.status === 'available' && isExpired && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-semibold text-red-600">
-              ⏰ Pickup window expired
-            </div>
-          )}
-
-          {listing.status === 'claimed' &&
-            listing.claimed_by === currentUserId && (
+          {canReadPickupDetails &&
+            currentUserId &&
+            (listing.status === 'claimed' || listing.status === 'picked_up') && (
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => void handlePickedUp()}
-                  disabled={pickingUp || unclaiming}
-                  className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => setChatOpen((open) => !open)}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
                 >
-                  {pickingUp ? 'Updating...' : 'Mark as Picked Up'}
+                  {chatOpen ? 'Hide Pickup Chat' : '💬 Open Pickup Chat'}
                 </button>
 
-                {!confirmUnclaim ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmUnclaim(true)}
-                    disabled={pickingUp}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                {chatOpen && (
+                  <Suspense
+                    fallback={
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                        Loading chat...
+                      </div>
+                    }
                   >
-                    Can&apos;t make it? Release claim
-                  </button>
-                ) : (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-center text-xs font-medium text-amber-900">
-                      Release this reservation so someone else can rescue it?
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmUnclaim(false)}
-                        disabled={unclaiming}
-                        className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700"
-                      >
-                        Keep Claim
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleUnclaim()}
-                        disabled={unclaiming}
-                        className="flex-1 rounded-lg bg-amber-600 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
-                      >
-                        {unclaiming ? 'Releasing...' : 'Confirm Release'}
-                      </button>
-                    </div>
-                  </div>
+                    <PickupChatPanel
+                      listingId={listing.id}
+                      currentUserId={currentUserId}
+                      donorId={listing.posted_by}
+                    />
+                  </Suspense>
                 )}
               </div>
             )}
 
-          {listing.status === 'claimed' &&
-            listing.claimed_by !== currentUserId && (
-              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-center text-sm font-medium text-yellow-700">
-                {isOwner
-                  ? '🔒 Your listing has been claimed by someone else.'
-                  : '🔒 This food has already been claimed.'}
-              </div>
-            )}
-
-          {listing.status === 'picked_up' && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center text-sm font-semibold text-gray-600">
-              🎉 Food successfully rescued
-            </div>
-          )}
-
-          {!isOwner && (
-            <div className="pt-1">
-              {reportSubmitted ? (
-                <p className="text-center text-xs text-gray-500">
-                  ✓ Report submitted for review.
-                </p>
-              ) : !reportOpen ? (
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => setReportOpen(true)}
-                    className="text-xs font-medium text-gray-400 hover:text-gray-600"
-                  >
-                    ⚑ Report listing
-                  </button>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => void handleReportSubmit(e)}
-                  className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-left"
-                >
-                  <label
-                    htmlFor={`report-reason-${listing.id}`}
-                    className="block text-xs font-semibold text-gray-700"
-                  >
-                    Reason
-                  </label>
-                  <select
-                    id={`report-reason-${listing.id}`}
-                    value={reportReason}
-                    onChange={(e) =>
-                      setReportReason(e.target.value as ReportReason)
-                    }
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs"
-                  >
-                    {REPORT_REASONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label
-                    htmlFor={`report-details-${listing.id}`}
-                    className="mt-2 block text-xs font-semibold text-gray-700"
-                  >
-                    Details (optional)
-                  </label>
-                  <textarea
-                    id={`report-details-${listing.id}`}
-                    value={reportDetails}
-                    onChange={(e) => setReportDetails(e.target.value)}
-                    rows={2}
-                    maxLength={300}
-                    placeholder="Briefly describe the issue..."
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs"
-                  />
-
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setReportOpen(false)}
-                      disabled={reporting}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white py-1.5 text-xs font-semibold text-gray-700"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={reporting}
-                      className="flex-1 rounded-lg bg-gray-800 py-1.5 text-xs font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
-                    >
-                      {reporting ? 'Sending...' : 'Submit Report'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
+          <ListingActions
+            listing={listing}
+            currentUserId={currentUserId}
+            isOwner={isOwner}
+            isClaimant={isClaimant}
+            isExpired={isExpired}
+            onUpdated={onUpdated}
+            onDeleted={onDeleted}
+            onEdit={() => setEditOpen(true)}
+            onRepost={onRepost}
+            onError={setError}
+            refreshListing={refreshListing}
+          />
         </div>
       </div>
     </article>

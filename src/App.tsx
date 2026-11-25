@@ -11,9 +11,11 @@ import FilterBar from './components/FilterBar'
 import Header from './components/Header'
 import ListingFeed from './components/ListingFeed'
 import NavTabs from './components/NavTabs'
+import ProfileModal from './components/ProfileModal'
 import RealtimeBanner from './components/RealtimeBanner'
 import ResetPasswordModal from './components/ResetPasswordModal'
 import { useAuth } from './hooks/useAuth'
+import { useBrowserNotifications } from './hooks/useBrowserNotifications'
 import { useListings } from './hooks/useListings'
 import { useNowTick } from './hooks/useNowTick'
 import { useRealtimeNotice } from './hooks/useRealtimeNotice'
@@ -62,6 +64,7 @@ const VIEW_METADATA: Record<
 
 function App() {
   const [view, setView] = useState<View>('available')
+  const [repostDraft, setRepostDraft] = useState<Partial<Listing> | null>(null)
   const [displayMode, setDisplayMode] = useState<'grid' | 'map'>('grid')
   const [highlightedListingId, setHighlightedListingId] = useState<
     string | null
@@ -70,11 +73,28 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortBy, setSortBy] = useState<SortOption>('recommended')
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>('all')
+  const [profileOpen, setProfileOpen] = useState(false)
   const [error, setError] = useState('')
 
   const nowMs = useNowTick()
   const { realtimeNotice, showRealtimeNotice, clearRealtimeNotice } =
     useRealtimeNotice()
+  const {
+    permission: notificationPermission,
+    notificationsEnabled,
+    toggleNotifications,
+    notifyIfEnabled,
+  } = useBrowserNotifications()
+
+  const handleRealtimeNotice = useCallback(
+    (message: string) => {
+      showRealtimeNotice(message)
+      if (message.includes('New surplus food')) {
+        notifyIfEnabled('Food Rescue — Surplus Food Nearby', message)
+      }
+    },
+    [notifyIfEnabled, showRealtimeNotice]
+  )
 
   const handleLocationEnabled = useCallback(() => {
     setSortBy((current) => (current === 'newest' ? 'nearest' : current))
@@ -99,6 +119,7 @@ function App() {
   }, [])
 
   const handleSignedOutCleanup = useCallback(() => {
+    setProfileOpen(false)
     resetUiFilters()
     clearStoredLocation()
     clearRealtimeNotice()
@@ -124,6 +145,7 @@ function App() {
 
   const {
     listings,
+    refreshing,
     realtimeStatus,
     pickupDetailsById,
     loadListings,
@@ -133,7 +155,7 @@ function App() {
     handleListingDeleted,
   } = useListings({
     userId,
-    showRealtimeNotice,
+    showRealtimeNotice: handleRealtimeNotice,
     onError: setError,
     onClearRealtimeError: clearRealtimeError,
   })
@@ -160,11 +182,26 @@ function App() {
   const handleCreated = useCallback(
     (newListing: Listing) => {
       handleListingCreated(newListing)
+      setRepostDraft(null)
       setView('available')
       setDisplayMode('grid')
     },
     [handleListingCreated]
   )
+
+  const handleRepost = useCallback((expiredListing: Listing) => {
+    setRepostDraft({
+      title: expiredListing.title,
+      description: expiredListing.description,
+      category: expiredListing.category,
+      quantity: expiredListing.quantity,
+      location_text: expiredListing.location_text,
+      dietary_type: expiredListing.dietary_type ?? null,
+      storage_type: expiredListing.storage_type ?? null,
+      allergens: expiredListing.allergens ?? null,
+    })
+    setView('post')
+  }, [])
 
   const handleSelectListingFromMap = useCallback((listingId: string) => {
     setHighlightedListingId(listingId)
@@ -229,11 +266,26 @@ function App() {
         <ResetPasswordModal onClose={dismissPasswordRecovery} />
       )}
 
+      {profileOpen && (
+        <ProfileModal
+          userId={userId}
+          userEmail={userEmail}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
+
       <Header
         userEmail={userEmail}
         loggingOut={loggingOut}
-        onNavigateHome={() => setView('available')}
-        onOpenPost={() => setView('post')}
+        onNavigateHome={() => {
+          setRepostDraft(null)
+          setView('available')
+        }}
+        onOpenPost={() => {
+          setRepostDraft(null)
+          setView('post')
+        }}
+        onOpenProfile={() => setProfileOpen(true)}
         onLogout={() => void handleLogout()}
       />
 
@@ -241,6 +293,7 @@ function App() {
         activeView={view}
         onSelectView={(nextView) => {
           setHighlightedListingId(null)
+          setRepostDraft(null)
           setView(nextView)
         }}
       />
@@ -250,6 +303,11 @@ function App() {
           realtimeStatus={realtimeStatus}
           realtimeNotice={realtimeNotice}
           onDismissNotice={clearRealtimeNotice}
+          onRefresh={() => void loadListings()}
+          refreshing={refreshing}
+          notificationPermission={notificationPermission}
+          notificationsEnabled={notificationsEnabled}
+          onToggleNotifications={() => void toggleNotifications()}
         />
 
         {error && (
@@ -284,9 +342,14 @@ function App() {
             }
           >
             <PostListingForm
+              key={repostDraft ? `repost-${repostDraft.title ?? 'draft'}` : 'new'}
               userId={userId}
+              initialDraft={repostDraft}
               onCreated={handleCreated}
-              onCancel={() => setView('available')}
+              onCancel={() => {
+                setRepostDraft(null)
+                setView('available')
+              }}
             />
           </Suspense>
         ) : view === 'impact' ? (
@@ -429,6 +492,7 @@ function App() {
                 onRetryPickupDetails={retryPickupDetails}
                 onUpdated={handleListingUpdated}
                 onDeleted={handleListingDeleted}
+                onRepost={handleRepost}
               />
             )}
           </>

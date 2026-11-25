@@ -8,6 +8,27 @@ export type FoodCategory =
   | 'beverages'
   | 'other'
 
+export type DietaryType = 'veg' | 'vegan' | 'non_veg' | 'eggetarian'
+
+export type StorageType = 'hot' | 'refrigerated' | 'room_temp' | 'frozen'
+
+export type OrganizationType =
+  | 'individual'
+  | 'restaurant'
+  | 'bakery'
+  | 'ngo'
+  | 'catering'
+  | 'grocery'
+
+export type UserProfile = {
+  id: string
+  display_name: string | null
+  organization_name: string | null
+  organization_type: OrganizationType | null
+  is_verified: boolean
+  updated_at: string
+}
+
 export type Listing = {
   id: string
   title: string
@@ -28,6 +49,10 @@ export type Listing = {
   posted_by: string
   claimed_by: string | null
   created_at: string
+
+  dietary_type?: DietaryType | null
+  allergens?: string[] | null
+  storage_type?: StorageType | null
 }
 
 export type PickupDetails = {
@@ -35,6 +60,7 @@ export type PickupDetails = {
   pickup_address: string
   pickup_instructions: string | null
   contact_phone: string | null
+  pickup_pin?: string | null
 }
 
 export type View =

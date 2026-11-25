@@ -33,9 +33,25 @@ export function useAuth({ onSignedOut, onError }: UseAuthOptions) {
           return
         }
 
-        if (mounted) {
-          setUserId(session?.user?.id ?? null)
-          setUserEmail(session?.user?.email ?? null)
+        if (session?.user && mounted) {
+          // Verify session token with Supabase Auth server rather than trusting local storage alone.
+          const {
+            data: { user: verifiedUser },
+            error: verifyError,
+          } = await supabase.auth.getUser()
+
+          if (mounted) {
+            if (verifyError || !verifiedUser) {
+              setUserId(null)
+              setUserEmail(null)
+            } else {
+              setUserId(verifiedUser.id)
+              setUserEmail(verifiedUser.email ?? null)
+            }
+          }
+        } else if (mounted) {
+          setUserId(null)
+          setUserEmail(null)
         }
       } catch (err) {
         if (import.meta.env.DEV) {

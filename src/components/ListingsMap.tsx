@@ -141,11 +141,24 @@ export default function ListingsMap({
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3">
-          <p className="text-xs font-medium text-gray-600">
-            Showing {mappable.length}{' '}
-            {mappable.length === 1 ? 'listing' : 'listings'} with approximate
-            area coordinates
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs font-medium text-gray-600">
+              Showing {mappable.length}{' '}
+              {mappable.length === 1 ? 'listing' : 'listings'} with approximate
+              area coordinates
+            </p>
+            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-green-600" /> Available
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-amber-500" /> Claimed
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-gray-600" /> Picked Up
+              </span>
+            </div>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
