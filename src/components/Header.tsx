@@ -21,12 +21,20 @@ export default function Header({
         <button
           type="button"
           onClick={onNavigateHome}
-          className="text-left"
+          className="flex items-center gap-3 text-left"
         >
-          <h1 className="text-2xl font-bold">Food Rescue</h1>
-          <p className="text-sm text-gray-500">
-            Rescue surplus food. Reduce waste.
-          </p>
+          <img
+            src="/logo.jpg"
+            alt="Food Rescue logo"
+            className="h-12 w-auto rounded-xl object-contain"
+            width={120}
+            height={48}
+          />
+          <div className="hidden sm:block">
+            <p className="text-sm text-gray-500">
+              Share Food • Reduce Waste • Nourish Lives
+            </p>
+          </div>
         </button>
 
         <div className="flex items-center gap-2 sm:gap-3">

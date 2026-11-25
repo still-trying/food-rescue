@@ -1,12 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/still-trying/food-rescue/main/public/icon-192.png" alt="Food Rescue Logo" width="96" height="96" onerror="this.style.display='none'"/>
-
-# 🍱 Food Rescue
-
-### Real-time surplus food sharing — connecting extra food with people nearby
-
-*Reducing food waste through fast, local rescue — one listing at a time.*
+<img src="./public/logo.jpg" alt="Food Rescue — Share Food • Reduce Waste • Nourish Lives" width="480" style="border-radius:16px; max-width:100%;"/>
 
 [![CI](https://github.com/still-trying/food-rescue/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/still-trying/food-rescue/actions/workflows/ci.yml)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
