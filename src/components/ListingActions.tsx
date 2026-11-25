@@ -309,7 +309,7 @@ export default function ListingActions({
       {listing.status === 'available' && !isExpired && (
         isOwner ? (
           <div className="space-y-2">
-            <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm font-semibold text-gray-600">
+            <div className="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-center text-sm font-semibold text-slate-600 dark:border-emerald-500/20 dark:bg-emerald-950/40 dark:text-slate-300">
               This is your listing.
             </div>
 
@@ -317,7 +317,7 @@ export default function ListingActions({
               <button
                 type="button"
                 onClick={onEdit}
-                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                className="flex-1 rounded-xl border border-slate-300 bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-emerald-500/25 dark:bg-emerald-950/60 dark:text-slate-200 dark:hover:bg-emerald-900/70"
               >
                 Edit Listing
               </button>
@@ -326,7 +326,7 @@ export default function ListingActions({
                 <button
                   type="button"
                   onClick={() => setConfirmCancel(true)}
-                  className="flex-1 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                  className="flex-1 rounded-xl border border-red-200 bg-white/90 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70"
                 >
                   Cancel Listing
                 </button>
@@ -334,8 +334,8 @@ export default function ListingActions({
             </div>
 
             {confirmCancel && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                <p className="text-center text-xs font-medium text-red-800">
+              <div className="rounded-xl border border-red-200 bg-red-50/95 p-3 dark:border-red-500/30 dark:bg-red-950/60">
+                <p className="text-center text-xs font-medium text-red-800 dark:text-red-200">
                   Remove this listing from the board?
                 </p>
                 <div className="mt-2 flex gap-2">
@@ -343,7 +343,7 @@ export default function ListingActions({
                     type="button"
                     onClick={() => setConfirmCancel(false)}
                     disabled={canceling}
-                    className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700"
+                    className="flex-1 rounded-lg border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                   >
                     Keep
                   </button>
@@ -364,7 +364,7 @@ export default function ListingActions({
             type="button"
             onClick={() => void handleClaim()}
             disabled={claiming}
-            className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
+            className="fr-btn-3d w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {claiming ? 'Claiming...' : 'Claim Food'}
           </button>
@@ -373,14 +373,14 @@ export default function ListingActions({
 
       {listing.status === 'available' && isExpired && (
         <div className="space-y-2">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-semibold text-red-600">
+          <div className="rounded-xl border border-red-200 bg-red-50/95 p-3 text-center text-sm font-semibold text-red-600 dark:border-red-500/30 dark:bg-red-950/60 dark:text-red-300">
             ⏰ Pickup window expired
           </div>
           {isOwner && (
             <button
               type="button"
               onClick={() => onRepost(listing)}
-              className="w-full rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800 transition hover:bg-green-100"
+              className="w-full rounded-xl border border-green-300 bg-green-50/95 px-4 py-2.5 text-sm font-semibold text-green-800 transition hover:bg-green-100 dark:border-emerald-500/35 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/70"
             >
               🔄 Repost with New Window
             </button>
@@ -389,13 +389,13 @@ export default function ListingActions({
       )}
 
       {listing.status === 'claimed' && (isClaimant || isOwner) && (
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 space-y-2">
+        <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/95 p-3 dark:border-indigo-500/30 dark:bg-indigo-950/55">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-semibold text-indigo-900">
+              <span className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
                 🔐 2-Step Handoff PIN
               </span>
-              <p className="text-[11px] text-indigo-700">
+              <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
                 Share this 4-digit PIN at pickup to verify handoff.
               </p>
             </div>
@@ -403,7 +403,7 @@ export default function ListingActions({
               type="button"
               onClick={() => void handleGeneratePin()}
               disabled={pinLoading}
-              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-400/35 dark:bg-indigo-900/70 dark:text-indigo-100 dark:hover:bg-indigo-800"
             >
               {pinLoading
                 ? 'Loading...'
@@ -417,7 +417,7 @@ export default function ListingActions({
             <button
               type="button"
               onClick={() => setShowPinVerify(true)}
-              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
+              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100"
             >
               Verify handoff with 4-digit PIN
             </button>
@@ -435,7 +435,7 @@ export default function ListingActions({
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="4-digit PIN"
                 aria-label="4-digit pickup PIN"
-                className="w-28 rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-indigo-600"
+                className="w-28 rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-indigo-600 dark:border-indigo-500/35 dark:bg-slate-900 dark:text-slate-100"
               />
               <button
                 type="submit"
@@ -455,7 +455,7 @@ export default function ListingActions({
             type="button"
             onClick={() => void handlePickedUp()}
             disabled={pickingUp || unclaiming}
-            className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
+            className="fr-btn-3d w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-600 dark:hover:bg-sky-500"
           >
             {pickingUp ? 'Updating...' : 'Mark as Picked Up'}
           </button>
@@ -465,13 +465,13 @@ export default function ListingActions({
               type="button"
               onClick={() => setConfirmUnclaim(true)}
               disabled={pickingUp}
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              className="w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-emerald-500/20 dark:bg-emerald-950/60 dark:text-slate-200 dark:hover:bg-emerald-900/70"
             >
               Can&apos;t make it? Release claim
             </button>
           ) : (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-              <p className="text-center text-xs font-medium text-amber-900">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-3 dark:border-amber-500/35 dark:bg-amber-950/60">
+              <p className="text-center text-xs font-medium text-amber-900 dark:text-amber-200">
                 Release this reservation so someone else can rescue it?
               </p>
               <div className="mt-2 flex gap-2">
@@ -479,7 +479,7 @@ export default function ListingActions({
                   type="button"
                   onClick={() => setConfirmUnclaim(false)}
                   disabled={unclaiming}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                 >
                   Keep Claim
                 </button>
@@ -498,7 +498,7 @@ export default function ListingActions({
       )}
 
       {listing.status === 'claimed' && !isClaimant && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-center text-sm font-medium text-yellow-700">
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50/95 p-3 text-center text-sm font-medium text-yellow-700 dark:border-yellow-500/30 dark:bg-yellow-950/55 dark:text-yellow-300">
           {isOwner
             ? '🔒 Your listing has been claimed by someone else.'
             : '🔒 This food has already been claimed.'}
@@ -506,7 +506,7 @@ export default function ListingActions({
       )}
 
       {listing.status === 'picked_up' && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center text-sm font-semibold text-gray-600">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 text-center text-sm font-semibold text-slate-600 dark:border-emerald-500/20 dark:bg-emerald-950/45 dark:text-emerald-200">
           🎉 Food successfully rescued
         </div>
       )}
@@ -514,7 +514,7 @@ export default function ListingActions({
       {!isOwner && (
         <div className="pt-1">
           {reportSubmitted ? (
-            <p className="text-center text-xs text-gray-500">
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
               ✓ Report submitted for review.
             </p>
           ) : !reportOpen ? (
@@ -522,7 +522,7 @@ export default function ListingActions({
               <button
                 type="button"
                 onClick={() => setReportOpen(true)}
-                className="text-xs font-medium text-gray-400 hover:text-gray-600"
+                className="text-xs font-medium text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               >
                 ⚑ Report listing
               </button>
@@ -530,11 +530,11 @@ export default function ListingActions({
           ) : (
             <form
               onSubmit={(e) => void handleReportSubmit(e)}
-              className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-left"
+              className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 text-left dark:border-emerald-500/20 dark:bg-[#0a1410]/80"
             >
               <label
                 htmlFor={`report-reason-${listing.id}`}
-                className="block text-xs font-semibold text-gray-700"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-200"
               >
                 Reason
               </label>
@@ -544,7 +544,7 @@ export default function ListingActions({
                 onChange={(e) =>
                   setReportReason(e.target.value as ReportReason)
                 }
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 dark:border-emerald-500/25 dark:bg-slate-900 dark:text-slate-100"
               >
                 {REPORT_REASONS.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -555,7 +555,7 @@ export default function ListingActions({
 
               <label
                 htmlFor={`report-details-${listing.id}`}
-                className="mt-2 block text-xs font-semibold text-gray-700"
+                className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-200"
               >
                 Details (optional)
               </label>
@@ -566,7 +566,7 @@ export default function ListingActions({
                 rows={2}
                 maxLength={300}
                 placeholder="Briefly describe the issue..."
-                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 placeholder-slate-400 dark:border-emerald-500/25 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
               />
 
               <div className="mt-2 flex gap-2">
@@ -574,14 +574,14 @@ export default function ListingActions({
                   type="button"
                   onClick={() => setReportOpen(false)}
                   disabled={reporting}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white py-1.5 text-xs font-semibold text-gray-700"
+                  className="flex-1 rounded-lg border border-slate-300 bg-white py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={reporting}
-                  className="flex-1 rounded-lg bg-gray-800 py-1.5 text-xs font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-slate-800 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   {reporting ? 'Sending...' : 'Submit Report'}
                 </button>

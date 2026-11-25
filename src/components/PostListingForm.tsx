@@ -469,22 +469,29 @@ export default function PostListingForm({
   }
 
   const minDateTimeLocal = toLocalDateTimeInputValue(new Date())
+  const fieldClass =
+    'w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-500/20 disabled:bg-slate-100 dark:border-emerald-500/25 dark:bg-[#0b1511]/85 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-400 dark:disabled:bg-slate-900'
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-900">Post Surplus Food</h2>
-        <p className="mt-2 text-gray-500">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          Post Surplus Food
+        </h2>
+        <p className="mt-2 text-slate-600 dark:text-slate-300">
           Help someone nearby rescue food instead of wasting it.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+        className="fr-surface-3d rounded-2xl border border-slate-200/80 p-6 sm:p-8 dark:border-emerald-500/20"
+      >
         <div className="space-y-5">
           {error && (
             <div
               role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+              className="rounded-xl border border-red-200 bg-red-50/95 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/60 dark:text-red-300"
             >
               <div className="flex items-start justify-between gap-3">
                 <p>⚠️ {error}</p>
@@ -492,7 +499,7 @@ export default function PostListingForm({
                 <button
                   type="button"
                   onClick={() => setError('')}
-                  className="font-bold text-red-500 hover:text-red-700"
+                  className="font-bold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
                   aria-label="Dismiss error"
                 >
                   ×
@@ -504,13 +511,13 @@ export default function PostListingForm({
           {publicPiiWarnings.length > 0 && (
             <div
               role="status"
-              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+              className="rounded-xl border border-amber-200 bg-amber-50/95 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/60 dark:text-amber-200"
             >
               <p className="font-semibold">
                 🛡️ Privacy check: Public fields may contain{' '}
                 {publicPiiWarnings.join(', ')}.
               </p>
-              <p className="mt-1 text-xs text-amber-800">
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
                 Keep exact addresses and phone numbers inside the private blue
                 section below so only the successful claimant can view them.
               </p>
@@ -520,7 +527,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-title"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Food name *
             </label>
@@ -532,11 +539,11 @@ export default function PostListingForm({
               placeholder="e.g. Vegetable Biryani"
               maxLength={100}
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+              className={fieldClass}
               required
             />
 
-            <p className="mt-1 text-right text-xs text-gray-400">
+            <p className="mt-1 text-right text-xs text-slate-400 dark:text-slate-500">
               {title.length}/100
             </p>
           </div>
@@ -544,7 +551,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-category"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Food category *
             </label>
@@ -554,7 +561,7 @@ export default function PostListingForm({
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+              className={fieldClass}
               required
             >
               <option value="">Select a category</option>
@@ -566,12 +573,12 @@ export default function PostListingForm({
             </select>
 
             {suggestedCategory && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+              <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                 <span>Suggested:</span>
                 <button
                   type="button"
                   onClick={() => setCategory(suggestedCategory)}
-                  className="rounded-full border border-green-200 bg-green-50 px-3 py-1 font-semibold text-green-700 hover:bg-green-100"
+                  className="rounded-full border border-green-200 bg-green-50 px-3 py-1 font-semibold text-green-700 hover:bg-green-100 dark:border-emerald-500/30 dark:bg-emerald-950/70 dark:text-emerald-300 dark:hover:bg-emerald-900"
                 >
                   Apply {formatCategoryLabel(suggestedCategory)}
                 </button>
@@ -582,7 +589,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-description"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Description
             </label>
@@ -595,10 +602,10 @@ export default function PostListingForm({
               rows={3}
               maxLength={1000}
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+              className={fieldClass}
             />
 
-            <p className="mt-1 text-right text-xs text-gray-400">
+            <p className="mt-1 text-right text-xs text-slate-400 dark:text-slate-500">
               {description.length}/1000
             </p>
           </div>
@@ -606,7 +613,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-quantity"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Quantity
             </label>
@@ -618,10 +625,10 @@ export default function PostListingForm({
               placeholder="e.g. Serves 8-10"
               maxLength={100}
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+              className={fieldClass}
             />
 
-            <p className="mt-1 text-right text-xs text-gray-400">
+            <p className="mt-1 text-right text-xs text-slate-400 dark:text-slate-500">
               {quantity.length}/100
             </p>
           </div>
@@ -629,7 +636,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-area"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Pickup area *
             </label>
@@ -642,24 +649,27 @@ export default function PostListingForm({
               maxLength={200}
               disabled={loading}
               aria-describedby="listing-area-help"
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+              className={fieldClass}
               required
             />
 
-            <p className="mt-1 text-right text-xs text-gray-400">
+            <p className="mt-1 text-right text-xs text-slate-400 dark:text-slate-500">
               {location.length}/200
             </p>
 
-            <p id="listing-area-help" className="mt-1 text-xs text-gray-400">
+            <p
+              id="listing-area-help"
+              className="mt-1 text-xs text-slate-400 dark:text-slate-400"
+            >
               Only this broad area is visible before a claim. Exact pickup
               details stay private.
             </p>
           </div>
 
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-4 dark:border-sky-500/25 dark:bg-sky-950/45">
             <label
               htmlFor="listing-pickup-address"
-              className="mb-2 block text-sm font-semibold text-blue-900"
+              className="mb-2 block text-sm font-semibold text-blue-900 dark:text-sky-200"
             >
               Exact pickup address *
             </label>
@@ -671,12 +681,12 @@ export default function PostListingForm({
               maxLength={300}
               disabled={loading}
               aria-describedby="listing-pickup-address-help"
-              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:border-blue-600 disabled:bg-slate-100 dark:border-sky-500/30 dark:bg-[#091318]/90 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-sky-400 dark:disabled:bg-slate-900"
               required
             />
             <p
               id="listing-pickup-address-help"
-              className="mt-2 text-xs text-blue-800"
+              className="mt-2 text-xs text-blue-800 dark:text-sky-300"
             >
               Private: only you and the person who successfully claims this food
               can view this address. Google Maps receives it only when an
@@ -685,7 +695,7 @@ export default function PostListingForm({
 
             <label
               htmlFor="listing-pickup-instructions"
-              className="mb-2 mt-4 block text-sm font-semibold text-blue-900"
+              className="mb-2 mt-4 block text-sm font-semibold text-blue-900 dark:text-sky-200"
             >
               Pickup instructions (optional)
             </label>
@@ -697,15 +707,15 @@ export default function PostListingForm({
               rows={2}
               maxLength={500}
               disabled={loading}
-              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:border-blue-600 disabled:bg-slate-100 dark:border-sky-500/30 dark:bg-[#091318]/90 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-sky-400 dark:disabled:bg-slate-900"
             />
-            <p className="mt-1 text-right text-xs text-blue-700">
+            <p className="mt-1 text-right text-xs text-blue-700 dark:text-sky-400">
               {pickupInstructions.length}/500
             </p>
 
             <label
               htmlFor="donor-contact-phone"
-              className="mb-2 mt-4 block text-sm font-semibold text-blue-900"
+              className="mb-2 mt-4 block text-sm font-semibold text-blue-900 dark:text-sky-200"
             >
               Contact phone number *
             </label>
@@ -719,13 +729,13 @@ export default function PostListingForm({
               placeholder="+91 98765 43210"
               maxLength={25}
               disabled={loading}
-              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 outline-none focus:border-blue-600 disabled:bg-gray-100"
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 outline-none focus:border-blue-600 disabled:bg-slate-100 dark:border-sky-500/30 dark:bg-[#091318]/90 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-sky-400 dark:disabled:bg-slate-900"
               aria-describedby="donor-contact-phone-help"
               required
             />
             <p
               id="donor-contact-phone-help"
-              className="mt-2 text-xs text-blue-800"
+              className="mt-2 text-xs text-blue-800 dark:text-sky-300"
             >
               Include your country code. Only you and the person who
               successfully claims this food can see this number. Other users
@@ -736,7 +746,7 @@ export default function PostListingForm({
           <div>
             <label
               htmlFor="listing-photo"
-              className="mb-2 block text-sm font-semibold"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
             >
               Food photo
             </label>
@@ -748,16 +758,16 @@ export default function PostListingForm({
               accept="image/jpeg,image/png,image/webp"
               onChange={(e) => void handlePhotoChange(e)}
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 disabled:bg-gray-100"
+              className="w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-green-700 hover:file:bg-green-100 disabled:bg-slate-100 dark:border-emerald-500/25 dark:bg-[#0b1511]/85 dark:text-slate-200 dark:file:bg-emerald-950 dark:file:text-emerald-300 dark:disabled:bg-slate-900"
             />
 
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               JPG, PNG or WebP · Maximum 5 MB (compressed &amp; EXIF metadata
               stripped automatically)
             </p>
 
             {photo && photoPreviewUrl && (
-              <div className="mt-3 space-y-2 rounded-xl border border-green-200 bg-green-50 p-3">
+              <div className="mt-3 space-y-2 rounded-xl border border-green-200 bg-green-50/90 p-3 dark:border-emerald-500/30 dark:bg-emerald-950/55">
                 <div className="flex flex-wrap items-center gap-4">
                   <img
                     src={photoPreviewUrl}
@@ -765,7 +775,7 @@ export default function PostListingForm({
                     className="h-16 w-16 rounded-lg object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-green-800">
+                    <p className="truncate text-sm font-medium text-green-800 dark:text-emerald-200">
                       ✓ {photo.name}
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-3">
@@ -773,7 +783,7 @@ export default function PostListingForm({
                         type="button"
                         onClick={() => void handleAiAutofill()}
                         disabled={aiLoading || loading}
-                        className="rounded-lg border border-green-300 bg-white px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50"
+                        className="rounded-lg border border-green-300 bg-white px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50 dark:border-emerald-500/35 dark:bg-emerald-900/70 dark:text-emerald-200 dark:hover:bg-emerald-800"
                       >
                         {aiLoading
                           ? 'Analyzing photo...'
@@ -784,7 +794,7 @@ export default function PostListingForm({
                         type="button"
                         onClick={clearPhotoSelection}
                         disabled={loading || aiLoading}
-                        className="text-xs font-semibold text-red-600 underline hover:text-red-800 disabled:opacity-50"
+                        className="text-xs font-semibold text-red-600 underline hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-200"
                       >
                         Remove photo
                       </button>
@@ -793,7 +803,10 @@ export default function PostListingForm({
                 </div>
 
                 {aiNotice && (
-                  <p className="text-xs text-green-900" role="status">
+                  <p
+                    className="text-xs text-green-900 dark:text-emerald-200"
+                    role="status"
+                  >
                     {aiNotice}
                   </p>
                 )}
@@ -801,8 +814,8 @@ export default function PostListingForm({
             )}
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
-            <p className="text-sm font-semibold text-gray-800">
+          <div className="space-y-4 rounded-xl border border-slate-200/80 bg-slate-50/85 p-4 dark:border-emerald-500/20 dark:bg-[#0a1410]/70">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
               🥗 Dietary &amp; Food Safety Info (optional)
             </p>
 
@@ -810,7 +823,7 @@ export default function PostListingForm({
               <div>
                 <label
                   htmlFor="listing-dietary"
-                  className="mb-1.5 block text-xs font-semibold text-gray-700"
+                  className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
                   Dietary Type
                 </label>
@@ -821,7 +834,7 @@ export default function PostListingForm({
                     setDietaryType(e.target.value as DietaryType | '')
                   }
                   disabled={loading}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-600"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-green-600 dark:border-emerald-500/25 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-emerald-400"
                 >
                   <option value="">Not specified</option>
                   {DIETARY_OPTIONS.map((item) => (
@@ -835,7 +848,7 @@ export default function PostListingForm({
               <div>
                 <label
                   htmlFor="listing-storage"
-                  className="mb-1.5 block text-xs font-semibold text-gray-700"
+                  className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
                 >
                   Storage Condition
                 </label>
@@ -846,7 +859,7 @@ export default function PostListingForm({
                     setStorageType(e.target.value as StorageType | '')
                   }
                   disabled={loading}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-600"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-green-600 dark:border-emerald-500/25 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-emerald-400"
                 >
                   <option value="">Not specified</option>
                   {STORAGE_OPTIONS.map((item) => (
@@ -859,7 +872,7 @@ export default function PostListingForm({
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold text-gray-700">
+              <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Contains common allergens
               </p>
               <div className="flex flex-wrap gap-2">
@@ -874,8 +887,8 @@ export default function PostListingForm({
                       disabled={loading}
                       className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                         selected
-                          ? 'border-amber-400 bg-amber-100 text-amber-900'
-                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-100'
+                          ? 'border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/80 dark:text-amber-200'
+                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100 dark:border-emerald-500/20 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                       }`}
                     >
                       {selected ? `✓ ${allergen}` : allergen}
@@ -890,7 +903,7 @@ export default function PostListingForm({
             <div>
               <label
                 htmlFor="listing-pickup-start"
-                className="mb-2 block text-sm font-semibold"
+                className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
               >
                 Pickup starts *
               </label>
@@ -902,7 +915,7 @@ export default function PostListingForm({
                 value={pickupStart}
                 onChange={(e) => setPickupStart(e.target.value)}
                 disabled={loading}
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+                className={fieldClass}
                 required
               />
             </div>
@@ -910,7 +923,7 @@ export default function PostListingForm({
             <div>
               <label
                 htmlFor="listing-pickup-end"
-                className="mb-2 block text-sm font-semibold"
+                className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
               >
                 Pickup ends *
               </label>
@@ -922,7 +935,7 @@ export default function PostListingForm({
                 value={pickupEnd}
                 onChange={(e) => setPickupEnd(e.target.value)}
                 disabled={loading}
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-600 disabled:bg-gray-100"
+                className={fieldClass}
                 required
               />
             </div>
@@ -934,7 +947,7 @@ export default function PostListingForm({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="flex-1 rounded-xl border border-gray-300 px-4 py-3 font-semibold hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/25 dark:bg-emerald-950/60 dark:text-slate-200 dark:hover:bg-emerald-900/70"
           >
             Cancel
           </button>
@@ -942,7 +955,7 @@ export default function PostListingForm({
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="fr-btn-3d flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {loading ? 'Finding location & posting...' : 'Post Food'}
           </button>

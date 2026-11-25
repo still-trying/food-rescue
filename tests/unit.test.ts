@@ -6,6 +6,7 @@ import {
   formatStorageLabel,
   isValidCategory,
 } from '../src/constants/categories'
+import { resolveInitialTheme } from '../src/hooks/useTheme'
 import type { Listing } from '../src/types/listing'
 import { isListingExpired, toLocalDateTimeInputValue } from '../src/utils/date'
 import { calculateDistanceKm, formatDistance } from '../src/utils/geo'
@@ -552,5 +553,14 @@ describe('listingFilters', () => {
     })
     assert.equal(recommended[0]?.listing.id, 'near')
     assert.ok((recommended[0]?.rescueScore ?? 0) > (recommended[1]?.rescueScore ?? 0))
+  })
+})
+
+describe('theme preference resolution', () => {
+  it('respects explicit stored preference and falls back to system preference', () => {
+    assert.equal(resolveInitialTheme('dark', false), 'dark')
+    assert.equal(resolveInitialTheme('light', true), 'light')
+    assert.equal(resolveInitialTheme(null, true), 'dark')
+    assert.equal(resolveInitialTheme('invalid', false), 'light')
   })
 })

@@ -139,15 +139,15 @@ export default function ListingsMap({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3">
+      <div className="fr-surface-3d overflow-hidden rounded-2xl border border-slate-200/80 dark:border-emerald-500/20">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-50/85 px-4 py-3 dark:border-emerald-500/15 dark:bg-[#0a1410]/85">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs font-medium text-gray-600">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Showing {mappable.length}{' '}
               {mappable.length === 1 ? 'listing' : 'listings'} with approximate
               area coordinates
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-green-600" /> Available
               </span>
@@ -155,7 +155,8 @@ export default function ListingsMap({
                 <span className="h-2 w-2 rounded-full bg-amber-500" /> Claimed
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-gray-600" /> Picked Up
+                <span className="h-2 w-2 rounded-full bg-slate-600 dark:bg-slate-400" />{' '}
+                Picked Up
               </span>
             </div>
           </div>
@@ -164,18 +165,18 @@ export default function ListingsMap({
             <button
               type="button"
               onClick={() => setZoom((z) => Math.max(4, z - 1))}
-              className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-gray-100"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-emerald-500/25 dark:bg-emerald-950/70 dark:text-slate-200 dark:hover:bg-emerald-900"
               aria-label="Zoom out map"
             >
               −
             </button>
-            <span className="text-xs font-medium text-gray-500">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Zoom {zoom}
             </span>
             <button
               type="button"
               onClick={() => setZoom((z) => Math.min(17, z + 1))}
-              className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-gray-100"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-emerald-500/25 dark:bg-emerald-950/70 dark:text-slate-200 dark:hover:bg-emerald-900"
               aria-label="Zoom in map"
             >
               +
@@ -183,16 +184,16 @@ export default function ListingsMap({
             <button
               type="button"
               onClick={() => setCenter(initialCenter)}
-              className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-emerald-500/25 dark:bg-emerald-950/70 dark:text-slate-200 dark:hover:bg-emerald-900"
             >
               Recenter
             </button>
           </div>
         </div>
 
-        <div className="relative h-[440px] w-full overflow-hidden bg-slate-100">
+        <div className="relative h-[440px] w-full overflow-hidden bg-slate-100 dark:bg-[#0b1512]">
           {!tilesFailed ? (
-            <div className="pointer-events-none absolute inset-0">
+            <div className="pointer-events-none absolute inset-0 dark:brightness-[0.82] dark:contrast-[1.08] dark:saturate-[0.88]">
               {tiles.map((tile) => (
                 <img
                   key={tile.key}
@@ -211,7 +212,7 @@ export default function ListingsMap({
             </div>
           ) : (
             <div
-              className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]"
+              className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] dark:bg-[radial-gradient(rgba(52,211,153,0.2)_1px,transparent_1px)]"
               aria-hidden="true"
             />
           )}
@@ -261,7 +262,7 @@ export default function ListingsMap({
                 ? 'bg-green-600 text-white'
                 : listing.status === 'claimed'
                   ? 'bg-amber-500 text-white'
-                  : 'bg-gray-600 text-white'
+                  : 'bg-slate-600 text-white'
 
             return (
               <button
@@ -276,7 +277,9 @@ export default function ListingsMap({
                 }}
                 aria-label={`Select ${listing.title} in ${listing.location_text}`}
                 className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white px-2.5 py-1 text-xs font-bold shadow-md transition ${pinColor} ${
-                  isSelected ? 'z-20 scale-110 ring-2 ring-green-900' : 'z-10 hover:scale-105'
+                  isSelected
+                    ? 'z-20 scale-110 ring-2 ring-green-900 dark:ring-emerald-300'
+                    : 'z-10 hover:scale-105'
                 }`}
                 style={{
                   left: `${(pos.left / VIEWPORT_WIDTH) * 100}%`,
@@ -291,33 +294,33 @@ export default function ListingsMap({
             )
           })}
 
-          <div className="absolute bottom-2 right-2 rounded bg-white/85 px-2 py-0.5 text-[10px] text-gray-600">
+          <div className="absolute bottom-2 right-2 rounded bg-white/85 px-2 py-0.5 text-[10px] text-slate-600 backdrop-blur-xs dark:bg-slate-900/85 dark:text-slate-300">
             © OpenStreetMap contributors · Approximate pickup areas only
           </div>
         </div>
       </div>
 
       {selectedEntry ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="fr-surface-3d rounded-2xl border border-slate-200/80 p-5 dark:border-emerald-500/20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-bold text-gray-900">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">
                   {selectedEntry.listing.title}
                 </h3>
                 {formatCategoryLabel(selectedEntry.listing.category) && (
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     {formatCategoryLabel(selectedEntry.listing.category)}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                 📍 {selectedEntry.listing.location_text}
                 {formatDistance(selectedEntry.distanceKm)
                   ? ` · ${formatDistance(selectedEntry.distanceKm)}`
                   : ''}
               </p>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Pickup until {formatDateTime(selectedEntry.listing.pickup_window_end)}
               </p>
             </div>
@@ -326,7 +329,7 @@ export default function ListingsMap({
               <button
                 type="button"
                 onClick={() => onSelectListing(selectedEntry.listing.id)}
-                className="shrink-0 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+                className="fr-btn-3d shrink-0 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 View Details in Feed
               </button>
@@ -334,7 +337,7 @@ export default function ListingsMap({
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+        <div className="fr-surface-3d rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-emerald-500/25 dark:text-slate-400">
           No listings in this view have approximate map coordinates yet.
         </div>
       )}

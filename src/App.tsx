@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import AmbientBackground from './components/AmbientBackground'
 import Auth from './components/Auth'
 import FilterBar from './components/FilterBar'
 import Header from './components/Header'
@@ -19,6 +20,7 @@ import { useBrowserNotifications } from './hooks/useBrowserNotifications'
 import { useListings } from './hooks/useListings'
 import { useNowTick } from './hooks/useNowTick'
 import { useRealtimeNotice } from './hooks/useRealtimeNotice'
+import { useTheme } from './hooks/useTheme'
 import { useUserLocation } from './hooks/useUserLocation'
 import type {
   DistanceFilter,
@@ -76,6 +78,7 @@ function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [error, setError] = useState('')
 
+  const { theme, toggleTheme } = useTheme()
   const nowMs = useNowTick()
   const { realtimeNotice, showRealtimeNotice, clearRealtimeNotice } =
     useRealtimeNotice()
@@ -242,11 +245,14 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-green-600" />
-          <p className="font-medium text-gray-700">Loading Food Rescue...</p>
-          <p className="mt-1 text-sm text-gray-500">
+      <div className="relative flex min-h-screen items-center justify-center px-6">
+        <AmbientBackground />
+        <div className="fr-surface-3d rounded-2xl border border-slate-200/80 px-10 py-8 text-center dark:border-emerald-500/20">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-green-600 dark:border-emerald-900 dark:border-t-emerald-400" />
+          <p className="font-semibold text-slate-800 dark:text-slate-100">
+            Loading Food Rescue...
+          </p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Connecting to the food rescue board
           </p>
         </div>
@@ -255,13 +261,21 @@ function App() {
   }
 
   if (!userId) {
-    return <Auth onAuthenticated={handleAuthenticated} />
+    return (
+      <Auth
+        onAuthenticated={handleAuthenticated}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    )
   }
 
   const activeMeta = view === 'post' ? null : VIEW_METADATA[view]
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="relative min-h-screen text-slate-900 transition-colors dark:text-slate-100">
+      <AmbientBackground />
+
       {passwordRecoveryOpen && (
         <ResetPasswordModal onClose={dismissPasswordRecovery} />
       )}
@@ -277,6 +291,8 @@ function App() {
       <Header
         userEmail={userEmail}
         loggingOut={loggingOut}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onNavigateHome={() => {
           setRepostDraft(null)
           setView('available')
@@ -298,7 +314,7 @@ function App() {
         }}
       />
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <RealtimeBanner
           realtimeStatus={realtimeStatus}
           realtimeNotice={realtimeNotice}
@@ -313,7 +329,7 @@ function App() {
         {error && (
           <div
             role="alert"
-            className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700"
+            className="mb-6 rounded-xl border border-red-200 bg-red-50/95 p-4 text-red-700 shadow-sm backdrop-blur-sm dark:border-red-500/30 dark:bg-red-950/60 dark:text-red-300"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -324,7 +340,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => setError('')}
-                className="font-bold text-red-500 hover:text-red-700"
+                className="font-bold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
                 aria-label="Dismiss error"
               >
                 ×
@@ -336,7 +352,7 @@ function App() {
         {view === 'post' ? (
           <Suspense
             fallback={
-              <div className="py-12 text-center text-sm text-gray-500">
+              <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                 Loading listing form...
               </div>
             }
@@ -356,13 +372,17 @@ function App() {
           <>
             {activeMeta && (
               <div className="mb-8">
-                <h2 className="text-3xl font-bold">{activeMeta.title}</h2>
-                <p className="mt-2 text-gray-600">{activeMeta.subtitle}</p>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                  {activeMeta.title}
+                </h2>
+                <p className="mt-2 text-slate-600 dark:text-slate-300">
+                  {activeMeta.subtitle}
+                </p>
               </div>
             )}
             <Suspense
               fallback={
-                <div className="py-12 text-center text-sm text-gray-500">
+                <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                   Loading impact dashboard...
                 </div>
               }
@@ -378,8 +398,12 @@ function App() {
           <>
             {activeMeta && (
               <div className="mb-8">
-                <h2 className="text-3xl font-bold">{activeMeta.title}</h2>
-                <p className="mt-2 text-gray-600">{activeMeta.subtitle}</p>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                  {activeMeta.title}
+                </h2>
+                <p className="mt-2 text-slate-600 dark:text-slate-300">
+                  {activeMeta.subtitle}
+                </p>
               </div>
             )}
 
@@ -402,13 +426,13 @@ function App() {
 
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   {finalListings.length}{' '}
                   {finalListings.length === 1 ? 'listing' : 'listings'} found
                 </p>
 
                 {userLocation && distanceFilter !== 'all' && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Showing food within {distanceFilter} km of your location.
                   </p>
                 )}
@@ -416,7 +440,7 @@ function App() {
                 {userLocation &&
                   sortBy === 'nearest' &&
                   distanceFilter === 'all' && (
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Showing the closest food first.
                     </p>
                   )}
@@ -427,14 +451,14 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setDistanceFilter('all')}
-                    className="rounded-full border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100"
+                    className="rounded-full border border-green-200 bg-green-50/90 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 dark:border-emerald-500/30 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                   >
                     📍 Within {distanceFilter} km ×
                   </button>
                 )}
 
                 <div
-                  className="inline-flex rounded-xl border border-gray-200 bg-white p-1"
+                  className="fr-surface-3d inline-flex rounded-xl border border-slate-200/80 p-1 dark:border-emerald-500/20"
                   role="group"
                   aria-label="Feed display mode"
                 >
@@ -444,8 +468,8 @@ function App() {
                     aria-pressed={displayMode === 'grid'}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                       displayMode === 'grid'
-                        ? 'bg-green-600 text-white'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-green-600 text-white shadow-sm dark:bg-emerald-600'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     Grid
@@ -456,8 +480,8 @@ function App() {
                     aria-pressed={displayMode === 'map'}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                       displayMode === 'map'
-                        ? 'bg-green-600 text-white'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-green-600 text-white shadow-sm dark:bg-emerald-600'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     🗺️ Map
@@ -469,7 +493,7 @@ function App() {
             {displayMode === 'map' ? (
               <Suspense
                 fallback={
-                  <div className="py-12 text-center text-sm text-gray-500">
+                  <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                     Loading interactive map...
                   </div>
                 }

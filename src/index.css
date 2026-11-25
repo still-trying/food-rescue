@@ -1,1 +1,267 @@
 @import "tailwindcss";
+
+/* Enable class-based dark mode (`dark:` reacts to `.dark` on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Food Rescue — Subtle 3D Depth & Adaptive Glass Surfaces                    */
+/* -------------------------------------------------------------------------- */
+
+.fr-glass-bar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow:
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06),
+    0 6px 24px -12px rgba(15, 45, 28, 0.14);
+}
+
+.dark .fr-glass-bar {
+  background: rgba(11, 20, 16, 0.78);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+    0 10px 30px -14px rgba(0, 0, 0, 0.75);
+}
+
+.fr-surface-3d {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(249, 252, 250, 0.88) 100%
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 12px 28px -12px rgba(16, 56, 34, 0.12),
+    0 24px 48px -24px rgba(15, 23, 42, 0.1);
+}
+
+.dark .fr-surface-3d {
+  background: linear-gradient(
+    165deg,
+    rgba(20, 35, 28, 0.88) 0%,
+    rgba(13, 24, 19, 0.92) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 14px 32px -12px rgba(0, 0, 0, 0.65),
+    0 28px 56px -24px rgba(2, 12, 8, 0.7);
+}
+
+.fr-card-3d {
+  transform: perspective(1100px) translateZ(0);
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 240ms ease;
+}
+
+.fr-card-3d:hover {
+  transform: perspective(1100px) translateY(-4px) translateZ(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05),
+    0 4px 10px rgba(15, 23, 42, 0.06),
+    0 18px 36px -14px rgba(16, 85, 48, 0.18),
+    0 30px 60px -28px rgba(15, 23, 42, 0.16);
+}
+
+.dark .fr-card-3d:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 6px 14px rgba(0, 0, 0, 0.45),
+    0 20px 40px -14px rgba(16, 185, 129, 0.16),
+    0 34px 64px -26px rgba(0, 0, 0, 0.8);
+}
+
+.fr-btn-3d {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.16),
+    0 4px 12px -4px rgba(22, 163, 74, 0.45);
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.fr-btn-3d:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 8px 18px -5px rgba(22, 163, 74, 0.55);
+}
+
+.fr-btn-3d:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.2),
+    0 2px 6px -2px rgba(22, 163, 74, 0.35);
+}
+
+/* Subtle 3D perspective floor grid in ambient background */
+.fr-bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(22, 163, 74, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 163, 74, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 25%, #000 35%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 25%, #000 35%, transparent 100%);
+}
+
+.dark .fr-bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(52, 211, 153, 0.065) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(52, 211, 153, 0.065) 1px, transparent 1px);
+}
+
+/* Shaded 3D decorative spheres (subtle atmospheric depth) */
+.fr-orb-emerald {
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(167, 243, 208, 0.9) 0%,
+    rgba(52, 211, 153, 0.52) 38%,
+    rgba(5, 150, 105, 0.22) 72%,
+    rgba(6, 78, 59, 0.05) 100%
+  );
+  box-shadow:
+    inset -12px -18px 34px rgba(6, 95, 70, 0.22),
+    inset 10px 10px 24px rgba(255, 255, 255, 0.65),
+    0 24px 60px -18px rgba(16, 185, 129, 0.28);
+}
+
+.dark .fr-orb-emerald {
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(110, 231, 183, 0.42) 0%,
+    rgba(16, 185, 129, 0.26) 42%,
+    rgba(6, 95, 70, 0.16) 75%,
+    rgba(2, 44, 34, 0.04) 100%
+  );
+  box-shadow:
+    inset -14px -18px 36px rgba(0, 0, 0, 0.55),
+    inset 10px 10px 24px rgba(167, 243, 208, 0.22),
+    0 28px 70px -16px rgba(16, 185, 129, 0.22);
+}
+
+.fr-orb-amber {
+  background: radial-gradient(
+    circle at 30% 28%,
+    rgba(254, 240, 138, 0.88) 0%,
+    rgba(251, 146, 60, 0.48) 42%,
+    rgba(234, 88, 12, 0.2) 75%,
+    rgba(154, 52, 18, 0.04) 100%
+  );
+  box-shadow:
+    inset -12px -18px 32px rgba(194, 65, 12, 0.2),
+    inset 10px 10px 24px rgba(255, 255, 255, 0.68),
+    0 24px 60px -18px rgba(249, 115, 22, 0.24);
+}
+
+.dark .fr-orb-amber {
+  background: radial-gradient(
+    circle at 30% 28%,
+    rgba(253, 186, 116, 0.34) 0%,
+    rgba(249, 115, 22, 0.2) 44%,
+    rgba(154, 52, 18, 0.12) 76%,
+    rgba(67, 20, 7, 0.04) 100%
+  );
+  box-shadow:
+    inset -12px -18px 34px rgba(0, 0, 0, 0.52),
+    inset 10px 10px 22px rgba(254, 215, 170, 0.18),
+    0 28px 70px -16px rgba(249, 115, 22, 0.16);
+}
+
+.fr-orb-teal {
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(186, 230, 253, 0.85) 0%,
+    rgba(45, 212, 191, 0.42) 42%,
+    rgba(13, 148, 136, 0.18) 76%,
+    rgba(17, 94, 89, 0.04) 100%
+  );
+  box-shadow:
+    inset -10px -16px 30px rgba(15, 118, 110, 0.2),
+    inset 10px 10px 22px rgba(255, 255, 255, 0.65),
+    0 24px 56px -18px rgba(20, 184, 166, 0.22);
+}
+
+.dark .fr-orb-teal {
+  background: radial-gradient(
+    circle at 34% 30%,
+    rgba(153, 246, 228, 0.3) 0%,
+    rgba(20, 184, 166, 0.18) 44%,
+    rgba(17, 94, 89, 0.12) 76%,
+    rgba(4, 47, 46, 0.04) 100%
+  );
+  box-shadow:
+    inset -12px -16px 30px rgba(0, 0, 0, 0.55),
+    inset 8px 8px 20px rgba(153, 246, 228, 0.15),
+    0 28px 64px -18px rgba(20, 184, 166, 0.16);
+}
+
+@keyframes fr-float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.02);
+  }
+}
+
+@keyframes fr-float-reverse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10px, 12px, 0) scale(0.985);
+  }
+}
+
+.fr-animate-float {
+  animation: fr-float-slow 14s ease-in-out infinite;
+}
+
+.fr-animate-float-reverse {
+  animation: fr-float-reverse 18s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-animate-float,
+  .fr-animate-float-reverse {
+    animation: none;
+  }
+
+  .fr-card-3d,
+  .fr-card-3d:hover,
+  .fr-btn-3d,
+  .fr-btn-3d:hover,
+  .fr-btn-3d:active {
+    transform: none;
+    transition: none;
+  }
+}

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { reportClientError } from '../utils/telemetry'
+import AmbientBackground from './AmbientBackground'
 
 type Props = {
   children: ReactNode
@@ -17,7 +18,10 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    reportClientError(`ErrorBoundary:${info.componentStack?.slice(0, 80) ?? 'root'}`, error)
+    reportClientError(
+      `ErrorBoundary:${info.componentStack?.slice(0, 80) ?? 'root'}`,
+      error
+    )
   }
 
   private handleReload = () => {
@@ -27,22 +31,23 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div className="relative flex min-h-screen items-center justify-center px-6">
+          <AmbientBackground />
+          <div className="fr-surface-3d w-full max-w-md rounded-2xl border border-slate-200/80 p-8 text-center dark:border-emerald-500/20">
             <div className="text-4xl" aria-hidden="true">
               ⚠️
             </div>
-            <h1 className="mt-4 text-2xl font-bold text-gray-900">
+            <h1 className="mt-4 text-2xl font-bold text-slate-900 dark:text-slate-50">
               Something went wrong
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               An unexpected error interrupted Food Rescue. Reload the page to
               continue safely.
             </p>
             <button
               type="button"
               onClick={this.handleReload}
-              className="mt-6 w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
+              className="fr-btn-3d mt-6 w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               Reload App
             </button>
@@ -54,4 +59,3 @@ export default class ErrorBoundary extends Component<Props, State> {
     return this.props.children
   }
 }
-

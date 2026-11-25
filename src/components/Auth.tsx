@@ -1,8 +1,13 @@
 import { useState } from 'react'
+import type { Theme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
+import AmbientBackground from './AmbientBackground'
+import ThemeToggle from './ThemeToggle'
 
 type Props = {
   onAuthenticated: () => void
+  theme?: Theme
+  onToggleTheme?: () => void
 }
 
 type AuthMode = 'login' | 'signup' | 'reset'
@@ -40,7 +45,11 @@ function getAuthErrorMessage(errorMessage: string) {
   return 'Something went wrong. Please try again.'
 }
 
-export default function Auth({ onAuthenticated }: Props) {
+export default function Auth({
+  onAuthenticated,
+  theme = 'light',
+  onToggleTheme,
+}: Props) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -190,25 +199,37 @@ export default function Auth({ onAuthenticated }: Props) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-      <div className="w-full max-w-md rounded-2xl border bg-white p-8 shadow-sm">
+    <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
+      <AmbientBackground />
+
+      {onToggleTheme && (
+        <div className="fixed right-5 top-5 z-20">
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        </div>
+      )}
+
+      <div className="fr-surface-3d w-full max-w-md rounded-3xl border border-slate-200/80 p-8 dark:border-emerald-500/20">
         <div className="mb-8 text-center">
-          <div className="text-4xl" aria-hidden="true">
-            🍱
+          <div className="mx-auto inline-flex overflow-hidden rounded-2xl bg-[#faf8f5] p-2 shadow-sm ring-1 ring-slate-900/5 dark:ring-white/15">
+            <img
+              src="/logo.jpg"
+              alt="Food Rescue logo"
+              className="h-16 w-auto rounded-xl object-contain"
+            />
           </div>
 
-          <h1 className="mt-4 text-3xl font-bold text-gray-900">
+          <h1 className="mt-4 text-3xl font-bold text-slate-900 dark:text-slate-50">
             Food Rescue
           </h1>
 
-          <p className="mt-2 text-gray-500">
-            Rescue surplus food. Reduce waste.
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Share Food • Reduce Waste • Nourish Lives
           </p>
         </div>
 
         {mode !== 'reset' ? (
           <div
-            className="mb-6 flex rounded-xl bg-gray-100 p-1"
+            className="mb-6 flex rounded-xl bg-slate-100/90 p-1 dark:bg-emerald-950/70"
             role="tablist"
             aria-label="Authentication mode"
           >
@@ -220,8 +241,8 @@ export default function Auth({ onAuthenticated }: Props) {
               disabled={loading}
               className={`flex-1 rounded-lg py-2 font-medium transition ${
                 mode === 'login'
-                  ? 'bg-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-emerald-800/70 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               } disabled:cursor-not-allowed disabled:opacity-50`}
             >
               Login
@@ -235,8 +256,8 @@ export default function Auth({ onAuthenticated }: Props) {
               disabled={loading}
               className={`flex-1 rounded-lg py-2 font-medium transition ${
                 mode === 'signup'
-                  ? 'bg-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-emerald-800/70 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               } disabled:cursor-not-allowed disabled:opacity-50`}
             >
               Sign Up
@@ -244,14 +265,14 @@ export default function Auth({ onAuthenticated }: Props) {
           </div>
         ) : (
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               Reset Password
             </h2>
             <button
               type="button"
               onClick={() => switchMode('login')}
               disabled={loading}
-              className="text-sm font-medium text-green-700 hover:underline"
+              className="text-sm font-medium text-green-700 hover:underline dark:text-emerald-400"
             >
               Back to Login
             </button>
@@ -263,7 +284,7 @@ export default function Auth({ onAuthenticated }: Props) {
             <div>
               <label
                 htmlFor="name"
-                className="mb-2 block text-sm font-semibold"
+                className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
               >
                 Name
               </label>
@@ -277,14 +298,17 @@ export default function Auth({ onAuthenticated }: Props) {
                 maxLength={100}
                 autoComplete="name"
                 disabled={loading}
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 disabled:bg-gray-100"
+                className="w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-500/20 disabled:bg-slate-100 dark:border-emerald-500/25 dark:bg-[#0b1511]/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-400 dark:disabled:bg-slate-900"
                 required
               />
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-semibold">
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200"
+            >
               Email
             </label>
 
@@ -296,7 +320,7 @@ export default function Auth({ onAuthenticated }: Props) {
               placeholder="you@example.com"
               autoComplete="email"
               disabled={loading}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 disabled:bg-gray-100"
+              className="w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-500/20 disabled:bg-slate-100 dark:border-emerald-500/25 dark:bg-[#0b1511]/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-400 dark:disabled:bg-slate-900"
               required
             />
           </div>
@@ -306,7 +330,7 @@ export default function Auth({ onAuthenticated }: Props) {
               <div className="mb-2 flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-semibold"
+                  className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
                 >
                   Password
                 </label>
@@ -316,7 +340,7 @@ export default function Auth({ onAuthenticated }: Props) {
                     type="button"
                     onClick={() => switchMode('reset')}
                     disabled={loading}
-                    className="text-xs font-medium text-green-700 hover:underline"
+                    className="text-xs font-medium text-green-700 hover:underline dark:text-emerald-400"
                   >
                     Forgot password?
                   </button>
@@ -337,12 +361,15 @@ export default function Auth({ onAuthenticated }: Props) {
                 aria-describedby={
                   mode === 'signup' ? 'password-help' : undefined
                 }
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 disabled:bg-gray-100"
+                className="w-full rounded-xl border border-slate-300 bg-white/90 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-500/20 disabled:bg-slate-100 dark:border-emerald-500/25 dark:bg-[#0b1511]/80 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-400 dark:disabled:bg-slate-900"
                 required
               />
 
               {mode === 'signup' && (
-                <p id="password-help" className="mt-1 text-xs text-gray-500">
+                <p
+                  id="password-help"
+                  className="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                >
                   Password must be at least 6 characters.
                 </p>
               )}
@@ -352,7 +379,7 @@ export default function Auth({ onAuthenticated }: Props) {
           {error && (
             <div
               role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              className="rounded-xl border border-red-200 bg-red-50/95 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/50 dark:text-red-300"
             >
               <div className="flex items-start justify-between gap-3">
                 <p>⚠️ {error}</p>
@@ -360,7 +387,7 @@ export default function Auth({ onAuthenticated }: Props) {
                 <button
                   type="button"
                   onClick={() => setError('')}
-                  className="font-bold text-red-500 hover:text-red-700"
+                  className="font-bold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
                   aria-label="Dismiss error"
                 >
                   ×
@@ -372,7 +399,7 @@ export default function Auth({ onAuthenticated }: Props) {
           {message && (
             <div
               role="status"
-              className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700"
+              className="rounded-xl border border-green-200 bg-green-50/95 p-3 text-sm text-green-700 dark:border-emerald-500/30 dark:bg-emerald-950/50 dark:text-emerald-300"
             >
               <div className="flex items-start justify-between gap-3">
                 <p>✓ {message}</p>
@@ -380,7 +407,7 @@ export default function Auth({ onAuthenticated }: Props) {
                 <button
                   type="button"
                   onClick={() => setMessage('')}
-                  className="font-bold text-green-600 hover:text-green-800"
+                  className="font-bold text-green-600 hover:text-green-800 dark:text-emerald-400 dark:hover:text-emerald-200"
                   aria-label="Dismiss message"
                 >
                   ×
@@ -392,7 +419,7 @@ export default function Auth({ onAuthenticated }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="fr-btn-3d w-full rounded-xl bg-green-600 py-3 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {loading
               ? mode === 'login'

@@ -31,17 +31,17 @@ export default function ListingFeed({
     return (
       <div
         role="status"
-        className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center"
+        className="fr-surface-3d rounded-2xl border border-dashed border-slate-300 p-12 text-center dark:border-emerald-500/25"
       >
         <div className="text-5xl" aria-hidden="true">
           🍱
         </div>
 
-        <h3 className="mt-4 text-xl font-semibold text-gray-900">
+        <h3 className="mt-4 text-xl font-semibold text-slate-900 dark:text-slate-100">
           No food listings found
         </h3>
 
-        <p className="mt-2 text-gray-500">
+        <p className="mt-2 text-slate-500 dark:text-slate-400">
           Try changing your search or filters, or be the first person to share
           surplus food.
         </p>

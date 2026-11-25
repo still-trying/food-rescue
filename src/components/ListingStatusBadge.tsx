@@ -24,14 +24,14 @@ export default function ListingStatusBadge({
         : 'Picked Up'
 
   const statusStyles = isExpired
-    ? 'bg-red-50 text-red-700 border-red-200'
+    ? 'bg-red-50/95 text-red-700 border-red-200 dark:bg-red-950/80 dark:text-red-300 dark:border-red-500/35'
     : status === 'available'
       ? isEndingSoon
-        ? 'bg-amber-50 text-amber-800 border-amber-300'
-        : 'bg-green-50 text-green-700 border-green-200'
+        ? 'bg-amber-50/95 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-500/35'
+        : 'bg-green-50/95 text-green-700 border-green-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-500/35'
       : status === 'claimed'
-        ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-        : 'bg-gray-50 text-gray-600 border-gray-200'
+        ? 'bg-yellow-50/95 text-yellow-700 border-yellow-200 dark:bg-yellow-950/80 dark:text-yellow-300 dark:border-yellow-500/35'
+        : 'bg-slate-100/95 text-slate-600 border-slate-200 dark:bg-slate-800/85 dark:text-slate-300 dark:border-slate-600/40'
 
   const statusIcon = isExpired
     ? '⏰'
@@ -54,4 +54,3 @@ export default function ListingStatusBadge({
     </span>
   )
 }
-

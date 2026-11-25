@@ -14,6 +14,8 @@ import {
   PrivateDestinationBox,
 } from '../src/components/PickupDetailsPanel'
 import RealtimeBanner from '../src/components/RealtimeBanner'
+import ThemeToggle from '../src/components/ThemeToggle'
+import AmbientBackground from '../src/components/AmbientBackground'
 import type { Listing } from '../src/types/listing'
 
 function makeListing(overrides: Partial<Listing> = {}): Listing {
@@ -235,6 +237,24 @@ describe('React component rendering', () => {
     )
     assert.ok(mapHtml.includes('OpenStreetMap'))
     assert.ok(mapHtml.includes('Paneer Biryani'))
+  })
+
+  it('renders ThemeToggle and AmbientBackground cleanly for dark and light modes', () => {
+    const lightToggle = renderToStaticMarkup(
+      <ThemeToggle theme="light" onToggle={() => {}} />
+    )
+    assert.ok(lightToggle.includes('Switch to dark mode'))
+    assert.ok(lightToggle.includes('aria-pressed="false"'))
+
+    const darkToggle = renderToStaticMarkup(
+      <ThemeToggle theme="dark" onToggle={() => {}} />
+    )
+    assert.ok(darkToggle.includes('Switch to light mode'))
+    assert.ok(darkToggle.includes('aria-pressed="true"'))
+
+    const bgHtml = renderToStaticMarkup(<AmbientBackground />)
+    assert.ok(bgHtml.includes('aria-hidden="true"'))
+    assert.ok(bgHtml.includes('fr-orb-emerald'))
   })
 })
 
