@@ -10,7 +10,7 @@
  * and generate a minimal valid favicon.ico via raw bytes.
  */
 
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { copyFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
