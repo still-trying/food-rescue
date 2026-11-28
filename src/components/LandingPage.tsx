@@ -86,30 +86,62 @@ export default function LandingPage({
     <div className="fr-hero-backdrop relative min-h-screen text-slate-900 transition-colors dark:text-slate-100">
       <AmbientBackground />
 
-      {/* Top Sticky Glass Navigation */}
-      <header className="fr-glass-bar sticky top-0 z-30 border-b border-slate-200/70 transition-colors dark:border-emerald-500/15">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="overflow-hidden rounded-xl bg-[#faf8f5] p-1 shadow-sm ring-1 ring-slate-900/5 dark:ring-white/15">
+      {/* Floating 3D Glass Navigation */}
+      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-6 sm:pt-4">
+        <div className="fr-nav-island mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-2xl border border-emerald-200/75 px-3.5 py-2.5 transition-all sm:px-5 sm:py-3 dark:border-emerald-500/25">
+          <a
+            href="#top"
+            className="group flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          >
+            <div className="relative overflow-hidden rounded-xl bg-[#faf8f5] p-1 shadow-sm ring-1 ring-emerald-900/10 transition-transform duration-200 group-hover:scale-105 dark:ring-emerald-400/25">
               <img
                 src="/logo.jpg"
                 alt="Food Rescue logo"
-                className="h-10 w-auto rounded-lg object-contain sm:h-11"
-                width={120}
-                height={44}
+                className="h-9 w-auto rounded-lg object-contain sm:h-10"
+                width={110}
+                height={40}
               />
             </div>
-            <div className="hidden sm:block">
-              <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                Food Rescue
-              </p>
-              <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="bg-gradient-to-r from-slate-900 via-emerald-900 to-green-700 bg-clip-text text-base font-extrabold tracking-tight text-transparent sm:text-lg dark:from-white dark:via-emerald-200 dark:to-teal-300">
+                  Food Rescue
+                </p>
+                <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 sm:inline-flex dark:border-emerald-500/30 dark:bg-emerald-950/80 dark:text-emerald-300">
+                  Live Board
+                </span>
+              </div>
+              <p className="hidden text-[11px] font-medium text-slate-500 sm:block dark:text-slate-400">
                 Share Food • Reduce Waste • Nourish Lives
               </p>
             </div>
-          </div>
+          </a>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <nav
+            aria-label="Landing sections"
+            className="hidden items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 md:flex dark:border-emerald-500/15 dark:bg-emerald-950/50"
+          >
+            <a
+              href="#how-it-works"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-emerald-700 hover:shadow-xs dark:text-slate-300 dark:hover:bg-emerald-900/60 dark:hover:text-emerald-200"
+            >
+              How It Works
+            </a>
+            <a
+              href="#safety-privacy"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-emerald-700 hover:shadow-xs dark:text-slate-300 dark:hover:bg-emerald-900/60 dark:hover:text-emerald-200"
+            >
+              Safety &amp; Privacy
+            </a>
+            <a
+              href="#get-started"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-emerald-700 hover:shadow-xs dark:text-slate-300 dark:hover:bg-emerald-900/60 dark:hover:text-emerald-200"
+            >
+              Get Started
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {onToggleTheme && (
               <ThemeToggle theme={theme} onToggle={onToggleTheme} compact />
             )}
@@ -117,7 +149,7 @@ export default function LandingPage({
             <button
               type="button"
               onClick={() => onOpenAuth('login')}
-              className="rounded-xl border border-slate-300/90 bg-white/85 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow active:translate-y-0 dark:border-emerald-500/25 dark:bg-emerald-950/60 dark:text-slate-100 dark:hover:bg-emerald-900/60"
+              className="rounded-xl border border-slate-300/90 bg-white/90 px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_6px_-2px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5 hover:border-emerald-400/60 hover:bg-white hover:text-emerald-800 active:translate-y-0 sm:px-4 dark:border-emerald-500/25 dark:bg-emerald-950/70 dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_-4px_rgba(0,0,0,0.5)] dark:hover:border-emerald-400/45 dark:hover:bg-emerald-900/70"
             >
               Login
             </button>
@@ -125,15 +157,15 @@ export default function LandingPage({
             <button
               type="button"
               onClick={() => onOpenAuth('signup')}
-              className="fr-btn-3d rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              className="fr-btn-3d rounded-xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 px-4 py-2 text-sm font-semibold text-white hover:from-green-500 hover:via-emerald-500 hover:to-teal-500 sm:px-5 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500"
             >
-              Sign Up
+              Sign Up →
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-10 sm:px-6 sm:pt-16">
+      <main id="top" className="mx-auto max-w-6xl px-4 pb-20 pt-8 sm:px-6 sm:pt-14">
         {/* Hero Section + 3D Workflow Preview */}
         <section className="grid items-center gap-12 lg:grid-cols-12">
           <div className="lg:col-span-6">
@@ -273,7 +305,11 @@ export default function LandingPage({
         </section>
 
         {/* How Food Rescue Works */}
-        <section className="mt-20" aria-labelledby="how-it-works-heading">
+        <section
+          id="how-it-works"
+          className="mt-20 scroll-mt-24"
+          aria-labelledby="how-it-works-heading"
+        >
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-widest text-green-700 dark:text-emerald-400">
               How It Works
@@ -319,7 +355,11 @@ export default function LandingPage({
         </section>
 
         {/* Key Platform Capabilities */}
-        <section className="mt-20" aria-labelledby="platform-pillars-heading">
+        <section
+          id="safety-privacy"
+          className="mt-20 scroll-mt-24"
+          aria-labelledby="platform-pillars-heading"
+        >
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-widest text-green-700 dark:text-emerald-400">
               Built With Care
@@ -356,7 +396,7 @@ export default function LandingPage({
         </section>
 
         {/* Bottom CTA Card */}
-        <section className="mt-20">
+        <section id="get-started" className="mt-20 scroll-mt-24">
           <div className="fr-surface-3d relative overflow-hidden rounded-3xl border border-emerald-200/90 p-8 sm:p-10 dark:border-emerald-500/25">
             <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
               <div className="max-w-xl">
