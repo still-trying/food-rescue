@@ -5,6 +5,7 @@ import Auth from '../src/components/Auth'
 import FilterBar from '../src/components/FilterBar'
 import Header from '../src/components/Header'
 import ImpactDashboard from '../src/components/ImpactDashboard'
+import LandingPage from '../src/components/LandingPage'
 import ListingFeed from '../src/components/ListingFeed'
 import ListingsMap from '../src/components/ListingsMap'
 import ListingStatusBadge from '../src/components/ListingStatusBadge'
@@ -99,11 +100,34 @@ describe('React component rendering', () => {
     assert.ok(filterHtml.includes('Recommended'))
   })
 
-  it('renders Auth screen with login/signup tabs and forgot password trigger', () => {
+  it('renders Auth screen with login/signup tabs, forgot password, and optional back button', () => {
     const html = renderToStaticMarkup(<Auth onAuthenticated={() => {}} />)
     assert.ok(html.includes('Food Rescue'))
     assert.ok(html.includes('Forgot password?'))
     assert.ok(html.includes('Sign Up'))
+
+    const signupHtml = renderToStaticMarkup(
+      <Auth
+        initialMode="signup"
+        onBack={() => {}}
+        onAuthenticated={() => {}}
+      />
+    )
+    assert.ok(signupHtml.includes('Create Account'))
+    assert.ok(signupHtml.includes('Back to Home'))
+  })
+
+  it('renders LandingPage with project overview, 3D showcase, and login/signup CTAs without testimonials', () => {
+    const html = renderToStaticMarkup(
+      <LandingPage onOpenAuth={() => {}} theme="light" onToggleTheme={() => {}} />
+    )
+    assert.ok(html.includes('Rescue good food before it'))
+    assert.ok(html.includes('How It Works'))
+    assert.ok(html.includes('Privacy-First Architecture'))
+    assert.ok(html.includes('fr-tilt-card'))
+    assert.ok(html.includes('Login'))
+    assert.ok(html.includes('Sign Up'))
+    assert.ok(!html.toLowerCase().includes('testimonial'))
   })
 
   it('renders ListingStatusBadge states and PrivateContactBox tel sanitization', () => {

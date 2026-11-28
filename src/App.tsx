@@ -10,6 +10,7 @@ import AmbientBackground from './components/AmbientBackground'
 import Auth from './components/Auth'
 import FilterBar from './components/FilterBar'
 import Header from './components/Header'
+import LandingPage from './components/LandingPage'
 import ListingFeed from './components/ListingFeed'
 import NavTabs from './components/NavTabs'
 import ProfileModal from './components/ProfileModal'
@@ -64,7 +65,25 @@ const VIEW_METADATA: Record<
   },
 }
 
+function getInitialUnauthRoute(): {
+  screen: 'landing' | 'auth'
+  mode: 'login' | 'signup'
+} {
+  if (typeof window === 'undefined') {
+    return { screen: 'landing', mode: 'login' }
+  }
+  const path = window.location.pathname.toLowerCase()
+  if (path === '/signup') {
+    return { screen: 'auth', mode: 'signup' }
+  }
+  if (path === '/login') {
+    return { screen: 'auth', mode: 'login' }
+  }
+  return { screen: 'landing', mode: 'login' }
+}
+
 function App() {
+  const [unauthRoute, setUnauthRoute] = useState(getInitialUnauthRoute)
   const [view, setView] = useState<View>('available')
   const [repostDraft, setRepostDraft] = useState<Partial<Listing> | null>(null)
   const [displayMode, setDisplayMode] = useState<'grid' | 'map'>('grid')
@@ -126,6 +145,14 @@ function App() {
     resetUiFilters()
     clearStoredLocation()
     clearRealtimeNotice()
+    setUnauthRoute({ screen: 'landing', mode: 'login' })
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.pathname === '/login' ||
+        window.location.pathname === '/signup')
+    ) {
+      window.history.replaceState(null, '', '/')
+    }
   }, [clearRealtimeNotice, clearStoredLocation, resetUiFilters])
 
   const {
@@ -166,8 +193,43 @@ function App() {
   useEffect(() => {
     if (userId) {
       void loadListings()
+      if (
+        typeof window !== 'undefined' &&
+        (window.location.pathname === '/login' ||
+          window.location.pathname === '/signup')
+      ) {
+        window.history.replaceState(null, '', '/')
+      }
     }
   }, [userId, loadListings])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const handlePopState = () => {
+      setUnauthRoute(getInitialUnauthRoute())
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const openAuthPage = useCallback((mode: 'login' | 'signup') => {
+    setUnauthRoute({ screen: 'auth', mode })
+    if (typeof window !== 'undefined') {
+      const targetPath = mode === 'signup' ? '/signup' : '/login'
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath)
+      }
+    }
+  }, [])
+
+  const openLandingPage = useCallback(() => {
+    setUnauthRoute({ screen: 'landing', mode: 'login' })
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/')
+    }
+  }, [])
 
   const clearUserLocation = useCallback(() => {
     clearStoredLocation()
@@ -261,9 +323,22 @@ function App() {
   }
 
   if (!userId) {
+    if (unauthRoute.screen === 'auth') {
+      return (
+        <Auth
+          key={unauthRoute.mode}
+          initialMode={unauthRoute.mode}
+          onBack={openLandingPage}
+          onAuthenticated={handleAuthenticated}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      )
+    }
+
     return (
-      <Auth
-        onAuthenticated={handleAuthenticated}
+      <LandingPage
+        onOpenAuth={openAuthPage}
         theme={theme}
         onToggleTheme={toggleTheme}
       />

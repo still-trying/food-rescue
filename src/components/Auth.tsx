@@ -6,6 +6,8 @@ import ThemeToggle from './ThemeToggle'
 
 type Props = {
   onAuthenticated: () => void
+  initialMode?: 'login' | 'signup'
+  onBack?: () => void
   theme?: Theme
   onToggleTheme?: () => void
 }
@@ -47,10 +49,12 @@ function getAuthErrorMessage(errorMessage: string) {
 
 export default function Auth({
   onAuthenticated,
+  initialMode = 'login',
+  onBack,
   theme = 'light',
   onToggleTheme,
 }: Props) {
-  const [mode, setMode] = useState<AuthMode>('login')
+  const [mode, setMode] = useState<AuthMode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -201,6 +205,19 @@ export default function Auth({
   return (
     <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
       <AmbientBackground />
+
+      {onBack && (
+        <div className="fixed left-5 top-5 z-20">
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300/80 bg-white/85 px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/25 dark:bg-emerald-950/60 dark:text-emerald-100 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-900/60"
+          >
+            ← Back to Home
+          </button>
+        </div>
+      )}
 
       {onToggleTheme && (
         <div className="fixed right-5 top-5 z-20">
